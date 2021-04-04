@@ -1,0 +1,163 @@
+:mod:`wildboar.linear_model`
+============================
+
+.. py:module:: wildboar.linear_model
+
+
+Package Contents
+----------------
+
+Classes
+~~~~~~~
+
+.. autoapisummary::
+
+   wildboar.linear_model.BaseEmbeddingEstimator
+   wildboar.linear_model.EmbeddingClassifierMixin
+   wildboar.linear_model.EmbeddingRegressorMixin
+   wildboar.linear_model.KernelLogisticRegression
+   wildboar.linear_model.RandomShapeletClassifier
+   wildboar.linear_model.RandomShapeletRegressor
+   wildboar.linear_model.RocketClassifier
+   wildboar.linear_model.RocketRegressor
+
+
+
+.. class:: BaseEmbeddingEstimator(*, random_state=None, n_jobs=None)
+
+
+   Bases: :class:`sklearn.base.BaseEstimator`
+
+   Base class for all estimators in scikit-learn.
+
+   .. rubric:: Notes
+
+   All estimators should specify all the parameters that can be set
+   at the class level in their ``__init__`` as explicit keyword
+   arguments (no ``*args`` or ``**kwargs``).
+
+   .. method:: fit(self, x, y, sample_weight=None)
+
+
+
+.. class:: EmbeddingClassifierMixin
+
+   .. method:: decision_function(self, x)
+
+
+   .. method:: predict(self, x)
+
+
+   .. method:: predict_log_proba(self, x)
+
+
+   .. method:: predict_proba(self, x)
+
+
+
+.. class:: EmbeddingRegressorMixin
+
+   .. method:: decision_function(self, x)
+
+
+   .. method:: predict(self, x)
+
+
+
+.. class:: KernelLogisticRegression(kernel=None, *, kernel_params=None, n_components=100, penalty='l2', dual=False, tol=0.0001, C=1.0, fit_intercept=True, intercept_scaling=1, class_weight=None, random_state=None, solver='lbfgs', max_iter=100, multi_class='auto', verbose=0, warm_start=False, n_jobs=None, l1_ratio=None)
+
+
+   Bases: :class:`sklearn.linear_model.LogisticRegression`
+
+   A simple kernel logistic implementation using a Nystroem kernel approximation
+
+   .. warning:: This kernel method is not specialized for temporal classification.
+
+   .. seealso::
+
+      :obj:`wildboar.datasets.outlier.EmmottLabeler`
+          Synthetic outlier dataset construction
+
+   Create a new kernel logistic regression
+
+   :param kernel: The kernel function to use. See `sklearn.metrics.pairwise.kernel_metric` for kernels. The default kernel
+                  is 'rbf'.
+   :type kernel: str, optional
+   :param kernel_params: Parameters to the kernel function.
+   :type kernel_params: dict, optional
+   :param n_components: Number of features to construct
+   :type n_components: int, optional
+
+   .. method:: decision_function(self, x)
+
+      Predict confidence scores for samples.
+
+      The confidence score for a sample is proportional to the signed
+      distance of that sample to the hyperplane.
+
+      :param X: Samples.
+      :type X: array-like or sparse matrix, shape (n_samples, n_features)
+
+      :returns: Confidence scores per (sample, class) combination. In the binary
+                case, confidence score for self.classes_[1] where >0 means this
+                class would be predicted.
+      :rtype: array, shape=(n_samples,) if n_classes == 2 else (n_samples, n_classes)
+
+
+   .. method:: fit(self, x, y, sample_weight=None)
+
+      Fit the model according to the given training data.
+
+      :param X: Training vector, where n_samples is the number of samples and
+                n_features is the number of features.
+      :type X: {array-like, sparse matrix} of shape (n_samples, n_features)
+      :param y: Target vector relative to X.
+      :type y: array-like of shape (n_samples,)
+      :param sample_weight: Array of weights that are assigned to individual samples.
+                            If not provided, then each sample is given unit weight.
+
+                            .. versionadded:: 0.17
+                               *sample_weight* support to LogisticRegression.
+      :type sample_weight: array-like of shape (n_samples,) default=None
+
+      :returns: Fitted estimator.
+      :rtype: self
+
+      .. rubric:: Notes
+
+      The SAGA solver supports both float64 and float32 bit arrays.
+
+
+
+.. class:: RandomShapeletClassifier(n_shapelets=1000, *, metric='euclidean', metric_params=None, min_shapelet_size=0.1, max_shapelet_size=1.0, alphas=(0.1, 1.0, 10.0), fit_intercept=True, normalize=False, scoring=None, cv=None, class_weight=None, n_jobs=None, random_state=None)
+
+
+   Bases: :class:`wildboar.linear_model._base.EmbeddingRidgeClassifierCV`
+
+   Mixin class for all classifiers in scikit-learn.
+
+
+.. class:: RandomShapeletRegressor(n_shapelets=1000, *, metric='euclidean', metric_params=None, min_shapelet_size=0.1, max_shapelet_size=1.0, alphas=(0.1, 1.0, 10.0), fit_intercept=True, normalize=False, scoring=None, cv=None, gcv_mode=None, n_jobs=None, random_state=None)
+
+
+   Bases: :class:`wildboar.linear_model._base.EmbeddingRidgeCV`
+
+   Mixin class for all regression estimators in scikit-learn.
+
+
+.. class:: RocketClassifier(n_kernels=10000, *, alphas=(0.1, 1.0, 10.0), fit_intercept=True, normalize=False, scoring=None, cv=None, class_weight=None, n_jobs=None, random_state=None)
+
+
+   Bases: :class:`wildboar.linear_model._base.EmbeddingRidgeClassifierCV`
+
+   Mixin class for all classifiers in scikit-learn.
+
+
+.. class:: RocketRegressor(n_kernels=None, *, alphas=(0.1, 1.0, 10.0), fit_intercept=True, normalize=False, scoring=None, cv=None, gcv_mode=None, n_jobs=None, random_state=None)
+
+
+   Bases: :class:`wildboar.linear_model._base.EmbeddingRidgeCV`
+
+   Mixin class for all regression estimators in scikit-learn.
+
+

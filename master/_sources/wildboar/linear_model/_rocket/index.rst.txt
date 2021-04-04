@@ -1,0 +1,37 @@
+:orphan:
+
+:mod:`wildboar.linear_model._rocket`
+====================================
+
+.. py:module:: wildboar.linear_model._rocket
+
+
+Module Contents
+---------------
+
+Classes
+~~~~~~~
+
+.. autoapisummary::
+
+   wildboar.linear_model._rocket.RocketClassifier
+   wildboar.linear_model._rocket.RocketRegressor
+
+
+
+.. class:: RocketClassifier(n_kernels=10000, *, alphas=(0.1, 1.0, 10.0), fit_intercept=True, normalize=False, scoring=None, cv=None, class_weight=None, n_jobs=None, random_state=None)
+
+
+   Bases: :class:`wildboar.linear_model._base.EmbeddingRidgeClassifierCV`
+
+   Mixin class for all classifiers in scikit-learn.
+
+
+.. class:: RocketRegressor(n_kernels=None, *, alphas=(0.1, 1.0, 10.0), fit_intercept=True, normalize=False, scoring=None, cv=None, gcv_mode=None, n_jobs=None, random_state=None)
+
+
+   Bases: :class:`wildboar.linear_model._base.EmbeddingRidgeCV`
+
+   Mixin class for all regression estimators in scikit-learn.
+
+
