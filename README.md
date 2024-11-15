@@ -1,55 +1,50 @@
 </p>
 <p align="center">
-<img src="https://github.com/isaksamsten/wildboar/blob/master/.github/github-logo.png?raw=true" alt="Wildboar logo" width="100px">
+<img src="https://github.com/wildboar-foundation/wildboar/blob/master/.github/github-logo.png?raw=true" alt="Wildboar logo" width="100px">
 </p>
 
 <h1 align="center">wildboar</h1>
 
 <p align="center">
-	<img src="https://img.shields.io/badge/python-3.7%20|%203.8%20|%203.9-blue" />
-	<img src="https://github.com/isaksamsten/wildboar/workflows/Build,%20test%20and%20upload%20to%20PyPI/badge.svg"/>
+	<img src="https://img.shields.io/badge/python-3.8%20|%203.9%20|%203.10-blue" />
+	<img src="https://github.com/wildboar-foundation/wildboar/workflows/Build,%20test%20and%20upload%20to%20PyPI/badge.svg"/>
 	<a href="https://badge.fury.io/py/wildboar"><img src="https://badge.fury.io/py/wildboar.svg" /></a>
 	<a href="https://pepy.tech/project/wildboar"><img src="https://static.pepy.tech/personalized-badge/wildboar?period=total&units=international_system&left_color=black&right_color=orange&left_text=downloads" /></a>
 	<a href="https://doi.org/10.5281/zenodo.4264063"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.4264063.svg" /></a>
 </p>
 
-[wildboar](https://isaksamsten.github.io/wildboar/) is a Python module for temporal machine learning and fast
+[wildboar](https://wildboar.dev/) is a Python module for temporal machine learning and fast
 distance computations built on top of
 [scikit-learn](https://scikit-learn.org) and [numpy](https://numpy.org)
-distributed under the GNU Lesser General Public License Version 3.
+distributed under the BSD 3-Clause license.
 
 It is currently maintained by Isak Samsten
 
 ## Features
-| **Data**                                                                          | **Classification**                                                                                                                | **Regression**                  | **Explainability**                                                                                                                                        | **Metric** | **Unsupervised**                                                                                                            | **Outlier**                                                                                                               |
-|-----------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------|---------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|------------|-----------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------|
-| [Repositories](https://isaksamsten.github.io/wildboar/master/guide/datasets.html) | [``ShapeletForestClassifier``](https://isaksamsten.github.io/wildboar/master/examples/supervised.html#univariate-shapelet-forest) | ``ShapeletForestRegressor``     | [``ShapeletForestCounterfactual``](https://isaksamsten.github.io/wildboar/master/examples/counterfactuals.html#comparison-of-counterfactual-explanations) | UCR-suite  | ``ShapeletForestEmbedding``                                                                                                 | [``IsolationShapeletForest``](https://isaksamsten.github.io/wildboar/master/examples/unsupervised.html#outlier-detection) |
-| Classification (``wildboar/ucr``)                                                 | ``ExtraShapeletTreesClassifier``                                                                                                  | ``ExtraShapeletTreesRegressor`` | ``KNearestCounterfactual``                                                                                                                                | MASS       | ``RandomShapeletEmbedding``                                                                                                 |                                                                                                                           |
-| Regression (``wildboar/tsereg``)                                                  | ``RocketTreeClassifier``                                                                                                          | ``RocketRegressor``             | ``PrototypeCounterfactual``                                                                                                                               |            | ``RocketEmbedding``                                                                                                         |                                                                                                                           |
-| Outlier detection (``wildboar/outlier:easy``)                                     | ``RocketClassifier``                                                                                                              | ``RandomShapeletRegressor``     | ``IntervalImportance``                                                                                                                                    |            | ``IntervalEmbedding``                                                                                                       |                                                                                                                           |
-|                                                                                   | ``RandomShapeletClassifier``                                                                                                      | ``RocketTreeRegressor``         |                                                                                                                                                           |            | ``FeatureEmbedding``                                                                                                        |                                                                                                                           |
-|                                                                                   | ``RockestClassifier``                                                                                                             | ``RockestRegressor``            |                                                                                                                                                           |            | [``matrix_profile``](https://isaksamsten.github.io/wildboar/master/examples/unsupervised.html#matrix-profile)               |                                                                                                                           |
-|                                                                                   | ``IntervalTreeClassifier``                                                                                                        | ``IntervalTreeRegressor``       |                                                                                                                                                           |            | [Regime change detection](https://github.com/isaksamsten/wildboar/blob/master/examples/annotate/motif%20and%20regime.ipynb) |                                                                                                                           |
-|                                                                                   | ``IntervalForestClassifier``                                                                                                      | ``IntervalForestRegressor``     |                                                                                                                                                           |            | [Motif discovery](https://github.com/isaksamsten/wildboar/blob/master/examples/annotate/motif%20and%20regime.ipynb)         |                                                                                                                           |
-|                                                                                   | ``ProximityTreeClassifier``                                                                                                       |                                 |                                                                                                                                                           |            |                                                                                                                             |                                                                                                                           |
-|                                                                                   | ``ProximityForestClassifier``                                                                                                     |                                 |                                                                                                                                                           |            |                                                                                                                             |                                                                                                                           |
+
+| **Data**                                                        | **Classification**             | **Regression**                | **Explainability**             | **Metric** | **Unsupervised**             | **Dimension selection**       | **Outlier**               |
+| --------------------------------------------------------------- | ------------------------------ | ----------------------------- | ------------------------------ | ---------- | ---------------------------- | ----------------------------- | ------------------------- |
+| [Repositories](https://wildboar.dev/master/guide/datasets.html) | `ShapeletForestClassifier`     | `ShapeletForestRegressor`     | `ShapeletForestCounterfactual` | UCR-suite  | `ShapeletForestTransform`    | `DimensionVarianceThreshold`  | `IsolationShapeletForest` |
+| Classification (`wildboar/ucr`)                                 | `ExtraShapeletTreesClassifier` | `ExtraShapeletTreesRegressor` | `KNearestCounterfactual`       | MASS       | `RandomShapeletEmbedding`    | `SelectDimensionPercentile`   |                           |
+| Regression (`wildboar/tsereg`)                                  | `RocketTreeClassifier`         | `RocketRegressor`             | `PrototypeCounterfactual`      | DTW        | `RocketTransform`            | `SelectDimensionTopK`         |                           |
+| Outlier detection (`wildboar/outlier:easy`)                     | `RocketClassifier`             | `RandomShapeletRegressor`     | `IntervalImportance`           | DDTW       | `IntervalTransform`          | `SelectDimensionSignificance` |                           |
+|                                                                 | `RandomShapeletClassifier`     | `RocketTreeRegressor`         | `ShapeletImportance`           | WDTW       | `FeatureTransform`           |                               |                           |
+|                                                                 | `RocketForestClassifier`       | `RocketForestRegressor`       |                                | MSM        | `MatrixProfileTransform`     |                               |                           |
+|                                                                 | `IntervalTreeClassifier`       | `IntervalTreeRegressor`       |                                | TWE        | `FlossSegmenter`             |                               |                           |
+|                                                                 | `IntervalForestClassifier`     | `IntervalForestRegressor`     |                                | LCSS       | Motif discovery              |                               |                           |
+|                                                                 | `ProximityTreeClassifier`      | `CastorRegressor`             |                                | ERP        | `SAX`                        |                               |                           |
+|                                                                 | `ProximityForestClassifier`    |                               |                                | EDR        | `PAA`                        |                               |                           |
+|                                                                 | `HydraClassifier`              |                               |                                | ADTW       | `MatrixProfileTransform`     |                               |                           |
+|                                                                 | `KNeighborsClassifier`         |                               |                                |            | `HydraTransform`             |                               |                           |
+|                                                                 | `ElasticEnsembleClassifier`    |                               |                                |            | `KMeans` with (W)DTW support |                               |                           |
+|                                                                 | `DilatedShapeletClassifier`    |                               |                                |            | `KMedoids`                   |                               |                           |
+|                                                                 | `CastorClassifier`             |                               |                                |            | `DilatedShapeletTransform`   |                               |                           |
+|                                                                 |                                |                               |                                |            | `CastorTransform`            |                               |                           |
+|                                                                 |                                |                               |                                |            | `QuantTransform`             |                               |                           |
+
+See the [documentation](https://wildboar.dev/master/) for examples.
 
 ## Installation
-
-### Dependencies
-
-wildboar requires:
-
- * python>=3.7
- * numpy>=1.17.4
- * scikit-learn>=0.21.3
- * scipy>=1.3.2
- 
-Some parts of wildboar is implemented using Cython. Hence, compilation
-requires:
-
- * cython (>= 0.29.14)
-
 
 ### Binaries
 
@@ -57,7 +52,8 @@ requires:
 
     pip install wildboar
 
-Universal binaries are compiled for GNU/Linux and Python 3.7, 3.8 and 3.9. 
+Universal binaries are compiled for Python 3.9, 3.10, 3.11 and 3.12 running on
+GNU/Linux, Windows and macOS.
 
 ### Compilation
 
@@ -65,18 +61,12 @@ If you already have a working installation of numpy, scikit-learn, scipy and cyt
 compiling and installing wildboar is as simple as:
 
     pip install .
-	
+
 To install the requirements, use:
 
     pip install -r requirements.txt
 
-For complete instructions see the [documentation](https://isaksamsten.github.io/wildboar/master/install.html#build-and-compile-from-source)
-	
-
-## Development
-
-Contributions are welcome. Pull requests should be
-formatted using [Black](https://black.readthedocs.io).
+For complete instructions see the [documentation](https://wildboar.dev/master/install.html#build-and-compile-from-source)
 
 ## Usage
 
@@ -87,33 +77,54 @@ x_train, x_test, y_train, y_test = load_dataset("GunPoint", merge_train_test=Fal
 c = ShapeletForestClassifier()
 c.fit(x_train, y_train)
 c.score(x_test, y_test)
-``` 
-    
-See the [tutorial](https://isaksamsten.github.io/wildboar/master/tutorial.html) for more examples.
+```
+
+The [User guide](https://wildboar.dev/master/guide.html) includes more
+detailed usage instructions.
+
+## Changelog
+
+The [changelog](https://wildboar.dev/master/more/whatsnew.html) records a
+history of notable changes to `wildboar`.
+
+## Development
+
+Contributions are welcome! The [developer's
+guide](https://wildboar.dev/master/more/contributing.html) has detailed
+information about contributing code and more!
+
+In short, pull requests should:
+
+- be well motivated
+- be formatted using Black
+- add relevant tests
+- add relevant documentation
 
 ## Source code
 
 You can check the latest sources with the command:
 
-    git clone https://github.com/isakkarlsson/wildboar
-    
+    git clone https://github.com/wildboar-foundation/wildboar
+
 ## Documentation
 
-* HTML documentation: [https://isaksamsten.github.io/wildboar](https://isaksamsten.github.io/wildboar)
-	
+- HTML documentation: [https://wildboar.dev](https://wildboar.dev)
+
 ## Citation
+
 If you use `wildboar` in a scientific publication, I would appreciate
 citations to the paper:
+
 - Karlsson, I., Papapetrou, P. Boström, H., 2016.
- *Generalized Random Shapelet Forests*. In the Data Mining and
- Knowledge Discovery Journal
+  _Generalized Random Shapelet Forests_. In the Data Mining and
+  Knowledge Discovery Journal
+
   - `ShapeletForestClassifier`
 
 - Isak Samsten, 2020. isaksamsten/wildboar: wildboar. Zenodo. doi:10.5281/zenodo.4264063
-    
-- Karlsson, I., Rebane, J., Papapetrou, P. et al. 
-  Locally and globally explainable time series tweaking. 
+- Karlsson, I., Rebane, J., Papapetrou, P. et al.
+  Locally and globally explainable time series tweaking.
   Knowl Inf Syst 62, 1671–1700 (2020)
-  
+
   - `ShapeletForestCounterfactual`
   - `KNearestCounterfactual`

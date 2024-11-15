@@ -1,171 +1,200 @@
-========
+.. currentmodule:: wildboar
+.. _guide-datasets:
+
+########
 Datasets
-========
-Wildboar is distributed with an advanced system for handling dataset repositories. A dataset repository can
-be used to load benchmark datasets or to distribute or store datasets.
+########
 
-What is a repository?
-=====================
-I short, a repository is a collection of datasets bundles. More specifically, a repository links to bundles (zip-files) containing datasets
-or dataset parts that can be downloaded, cached and loaded by wildboar.
+Wildboar is distributed with an advanced system for handling dataset
+repositories. A dataset repository can be used to load benchmark datasets or to
+distribute or store datasets.
 
-How to use a repository?
+In its simplest for we can use the function :func:`datasets.load_dataset`:
+
+.. code-block:: python
+
+  from wildboar.datasets import load_dataset
+  x, y = load_dataset('GunPoint', repository='wildboar/ucr')
+
+****************
+Loading datasets
+****************
+
+As described previously, :func:`~datasets.load_dataset` is the main entry point
+for easy loading of datasets, but we can also iteratively load multiple datasets
+using :func:`~datasets.load_datasets`. Currently, Wildboar only installs one
+repository by default, the `wildboar` repository. We hope that others will find
+the feature useful, and will distribute their datasets as Wildboar repositories.
+
+.. note::
+
+  One drawback of the current distribution approach is that we have to download
+  the full bundle to load a single dataset. We hope to improve this in the
+  future and download assets on-demand.
+
+For small experiments, we can load a limited selection of datasets from
+``wildboar/ucr-tiny``, either using :func:`~datasets.load_dataset` or one of
+the specific functions, e.g., :func:`~datasets.load_gun_point`. Additionally,
+Wildboar includes two more small repositories: ``wildboar/ucrmts-tiny``
+(multivariate classification) and ``wildboar/tsereg-tiny`` (univariate and
+multivariate regression).
+
+
+.. note::
+
+   These datasets optimized for minimal download size and can be loaded using
+   specialized functions:
+
+   - :meth:`~wildboar.datasets.load_gun_point` (univariate, classification)
+   - :meth:`~wildboar.datasets.load_two_lead_ecg` (univariate, classification)
+   - :meth:`~wildboar.datasets.load_synthetic_control` (univariate, classification)
+   - :meth:`~wildboar.datasets.load_ering` (multi-variate, classification)
+   - :meth:`~wildboar.datasets.load_articulary_word_recognition` (multi-variate, classification)
+   - :meth:`~wildboar.datasets.load_flood_modeling` (univaraite, regression)
+   - :meth:`~wildboar.datasets.load_appliances_energy` (multi-variate, regression)
+
+
+Loading a single dataset
 ========================
-Repositories are either initialized directly or used together with the ``load_dataset`` function.
+
+We can load a single dataset as follows:
 
 .. code-block:: python
 
-    >>> from wildboar.datasets import load_dataset
-    >>> x, y = load_dataset('GunPoint', repository='wildboar/ucr')
-    # ... downloading repository to cache folder...
-    >>> x.shape
+   >>> from wildboar.datasets import load_dataset
+   >>> x, y = load_dataset("GunPoint", repository="wildboar/ucr-tiny")
+   Downloading ucr-tiny-v1.0.2-default.zip (688.43 KB)
+      |██████████████████████████████████████████████----| 668.43/688.43 KB
+   >>> x.shape
+   (200, 150)
 
-Installed repositories and dataset bundles can be listed using the function
-``list_repositories`` and ``list_bundles`` respectively.
-
-.. code-block:: python
-
- >>> from wildboar.datasets import list_repositories, list_bundles
- >>> list_repositories()
- ['wildboar']
- >>> list_bundles("wildboar")
- ['ucr', 'ucr-tiny']
-
-.. note::
-
-    Repositories are cached locally in a folder controlled by the parameter ``cache_dir``. The default directory
-    depends on platform. To change the default cache-directory:
-
-    .. code-block:: python
-
-     >>> load_dataset("Wafer", repository="wildboar/ucr", cache_dir="/data/my_cache_drive")
-
-    .. warning::
-
-        The default cache location changed in version 1.0.4. To use the old location set ``cache_dir``
-        to ``'wildboar_cache'``
-
-To force re-download of an already cached repository set the parameter ``force`` to ``True``.
-
-.. note::
-
-    A wildboar repository string is composed of 2 mandatory and two optional
-    components written as ``{repository}/{bundle}[:{version}][:{tag}]``
-
-    ``{repository}``
-       The repository identifier. List available bundles use ``list_bundles(repository)``.
-       The identifier is composed of letters and match ``\w+``. List repositories
-       with ``list_repositories()``.
-
-    ``{bundle}``
-       The bundle identifier, i.e., the dataset bundle of a repository. The available datasets
-       can be listed with ``list_datasets("{repository}/{bundle}")``. The identifier
-       is composed of alphanumeric characters and -, matching ``[a-zA-Z0-9\-]+``.
-
-    ``{version}``
-       The bundle version (defaults to the version specified by the repository). The version
-       must match ``{major}[.{minor}][.{revision}]``.
-
-    ``{tag}``
-       The bundle tag (defaults to ``default``). The bundle tag is composed of
-       letters and -, matching ``[a-zA-Z-]+``.
-
-    **Examples**
-
-    - ``wildboar/ucr``: the `ucr` bundle from the `wildboar` repository using the
-      latest version and the ´default` tag.
-    - ``wildboar/ucr-tiny:1.0``: the `ucr-tiny` bundle from the `wildboar` repository
-      using the version `1.0` and `default` tag.
-    - ``wildboar/outlier:1.0:hard``: the `outlier` bundle, with version `1.0`, from
-      the `wildboar` repository using the tag `hard`.
-
-Installing repositories
-=======================
-A repository implements the interface of the class ``wildboar.datasets.Repository``
-
-.. note::
-
-    The default wildboar-repository is implemented using a ``JSONRepository`` which
-    specifies (versioned) datasets on a JSON endpoint.
-
-Repositories are installed using the function ``install_repository`` which takes
-either an url to a JSON-file or an instance of a ``Repository``.
+Wildboar offers additional operations that we can perform while loading
+datasets, for example, we can
+:doc:`preprocess the time series </guide/datasets/preprocess>` or return
+optional training/testing parts by setting ``merge_train_test`` to
+:python:`False`.
 
 .. code-block:: python
 
-    >>> from wildboar.datasets import install_repository
-    >>> install_repository("https://www.example.org/repo.json")
-    >>> list_repositories("example")
-    >>> load_dataset("example", repository="example/example")
+   >>> x_train, x_test, y_train, y_test = load_dataset("GunPoint", merge_train_test=False)
+   >>> x_train.shape, x_test.shape
+   ((50, 150), (150, 150))
 
-Updating repositories
----------------------
+We can also force a re-download of an already cached bundle by setting `force`
+to {python}`True`, and changing the `dtype` of the returned time series:
 
-Repositories can be refreshed using ``datasets.refresh_repositories()``.
+.. code-block:: python
 
-Implementation details
-----------------------
-
-JSON-repository specification
-.............................
-
-The ``JSONRepository`` expects a JSON-file following the specification below.
-
-.. code-block:: javascript
-
-    {
-        "name": "example", // required
-        "version": "1.0",  // required
-        "wildboar_requires": "1.0.4", // required, the minimum required wildboar version
-        "bundle_url": "https://example.org/download/{key}/{tag}-v{version}", // required, the data endpoint
-        "bundles": [ // required
-          {
-            "key": "example", // required, unique key of the bundle
-            "version": "1.0", // required, the default version of dataset
-            "tag": "default"  // optional, the default tag
-            "name": "UCR Time series repository", // required
-            "description": "Example dataset", // optional
-            "arrays": ["x", "y"] // optional
-            "collections": {"key": ["example1", "example"]} // optional
-          },
-        ]
-    }
-
-- Attributes ``{key}``, ``{version}`` and ``{tag}`` in the ``bundle_url`` value
-  are replaced with the bundle-key, bundle-version and bundle tag. All attribute
-  are required in the url.
-- ``arrays`` is optional. If not present, the dataset is assumed to be a single
-  numpy array where the last column contains the class label or a numpy-dict with
-  both ``x``, and ``y``
-
-  - if any other value except ``x`` and/or ``y`` is present in the ``arrays``-list,
-    it will be loaded as an ``extras``-dictionary
-  - if ``y`` is not present in arrays ``load_dataset`` return ``None`` for ``y``
-
-- ``bundles/version`` is the default version of the bundle which is used unless
-  the user specifies an alternative version
-- ``bundles/tag`` is the default tag of the bundle which is used unless the user
-  specifies an alternative bundle. (default: default)
-- ``bundles/collections`` is a dict of named collections of datasets which can
-  be specified when using ``load_datasets(..., collection="key")``
-
-The ``bundle_url`` points to a remote location that contains two files with
-extensions .zip and .sha respectively.
+   >>> load_datasets("GunPoint", dtype=float, force=True)
+   # ... re-download dataset
 
 .. note::
 
-    In the example, ``bundle_url`` should contain the two files
-    ``example/default-v1.0.zip`` and ``example/default-v1.0.sha``
+   To reduce the download size, the datasets downloaded from the
+   ``wildboar``-repository are 32-bit floating point values. However,
+   :func:`~datasets.load_dataset` converts the values to 64-bit when
+   loading the data to conform with the default value conventions of
+   Wildboar.
 
-The .sha-file should contain the sha1-hash of the .zip-file to ensure
-the integrity of the downloaded file. The zip-file should contain the datasets.
+Loading multiple datasets
+=========================
 
-Dataset bundles
-...............
+When running experiments, a common workflow is to load multiple dataset, fit
+and evaluate some estimator. In Wildboar, we can repeatedly load datasets from
+a bundle using the :func:`~datasets.load_datasets`-function:
 
-Out of the box, wildboar supports dataset bundles formatted as zip-files with npy
-or npz files, i.e., as created by ``numpy.save`` and ``numpy.savez``. The dataset files
-in the zip-file must be named according to ``{dataset_name}(_TRAIN|_TEST)?.(npy|npz)``.
-Multiple datasets with the same name will be merged. If both _TRAIN and _TEST files are
-present, ``load_dataset`` can return these train and test samples separately by
-setting ``merge_train_test=True``.
+.. code-block:: python
+
+   >>> from wildboar.datasets import load_datasets
+   >>> for name, (x, y) in load_datasets("wildboar/ucr-tiny"):
+   ...     print(name, x.shape)
+   ...
+   Beef (60, 470)
+   Coffee (56, 286)
+   GunPoint (200, 150)
+   SyntheticControl (600, 60)
+   TwoLeadECG (1162, 82)
+
+Loading multiple datasets also support setting the ``merge_train_test`` to
+:python:`False`:
+
+.. code-block:: python
+
+   >>> for name, (x_train, x_test, y_train, y_test) in load_datasets("wildboar/ucr-tiny"):
+   ...     print(name, x_train.shape)
+   ...
+
+.. _datasets_filter:
+
+Filters
+=======
+
+We can also specify filters to filter the datasets on the number of dimensions,
+samples, timesteps, labels and dataset names. We specify filters with the
+`filter` parameter, which accepts a :python:`list`, :python:`dict` or
+:python:`str`. We express string filters as:
+
+::
+
+                          ┌── Operator specification
+              ┌───────────┴───────────┐
+   (attribute)[<|<=|>|>=|=|~=](\d+|\w+)
+   └────┬────┘└───────┬──────┘└───┬───┘
+      │             │           └── A number or (part of) a dataset name
+      │             └── The comparision operator
+      └── The attribute name
+
+The attribute name is one of (the self-explanatory) attributes:
+
+``n_samples`` (:python:`int`)
+   The number of samples.
+
+``n_timesteps`` (:python:`int`)
+   The number of time steps.
+
+``n_dims`` (:python:`int`)
+   The number of dimensions.
+
+``n_labels`` (:python:`int`)
+   The number of labels
+
+``dataset`` (:python:`str`)
+   The dataset name
+
+The comparison operators for :python:`int` are ``<``, ``<=``, ``>``, ``>=`` and
+``=``, for *less-than*, *less-than-or-equal*, *greater-than*,
+*greater-than-or-equal* and *exactly-equal-to* respectively. The :python:`str`
+comparison operators are ``=`` and ``~=``, for *exactly-equal-to* and
+*exists-in* respectively.
+
+Filters can be chained to support `and-also` using a `list` or a `dict`:
+
+.. code-block:: python
+
+   >>> large = "n_samples>=100"
+   >>> large_multivariate = ["n_samples>=100", "n_dims>1"]
+   >>> large_multiclass = {
+   ...     "n_samples": ">=100",
+   ...     "n_labels": ">2",
+   ... }
+   >>> load_datasets("wildboar/ucr-tiny", filter=large_multiclass)
+   <generator object load_datasets at 0x7f262ce95d00>
+
+.. warning::
+   If we load multiple datasets with the parameter `merge_train_test` set to
+   `False` filters are applied to the **training** part only.
+
+:func:`~datasets.load_datasets` also accepts all parameters that are valid for
+:func:`~datasets.load_dataset`, so we can also preprocess the time series:
+
+.. code-block:: python
+
+   >>> load_datasets("wildboar/ucr-tiny", filter=large, preprocess="minmax_scale")
+   <generator object load_datasets at 0x7f262ce95d00>
+
+.. toctree::
+   :maxdepth: 2
+   :hidden:
+
+   datasets/repositories
+   datasets/preprocess

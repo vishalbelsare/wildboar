@@ -5,137 +5,135 @@ import os
 from setuptools import setup
 from setuptools.extension import Extension
 
-
-# Lazy loading
-class np_include_dirs(str):
-    def __str__(self):
-        import numpy as np
-
-        return np.get_include()
-
-
-BUILD_TYPE = os.getenv("WILDBOAR_BUILD") or "default"
-
 BUILD_ARGS = {
     "default": {
-        "extra_compile_args": ["-O2"],
-        "extra_link_args": [],
-        "libraries": [],
+        "posix": {
+            "extra_compile_args": ["-O2"],
+            "extra_link_args": [],
+            "libraries": [],
+        },
+        "nt": {
+            "extra_compile_args": ["/O2"],
+            "extra_link_args": [],
+            "libraries": [],
+        },
     },
-    "optimized": {
-        "extra_compile_args": [
-            "-O2",
-            "-march=native",
-            "-msse",
-            "-msse2",
-            "-mfma",
-            "-mfpmath=sse",
-        ],
-        "extra_link_args": [],
-        "libraries": [],
+    "debug": {
+        "posix": {
+            "extra_compile_args": ["-O0", "-g"],
+            "extra_link_args": [],
+            "libraries": [],
+        },
+        "nt": {
+            "extra_compile_args": ["/Od"],
+            "extra_link_args": [],
+            "libraries": [],
+        },
+    },
+    "optimize": {
+        "posix": {
+            "extra_compile_args": [
+                "-O3",
+                "-march=native",
+                "-ffast-math",
+            ],
+            "extra_link_args": [],
+            "libraries": [],
+        },
+        "nt": {
+            "extra_compile_args": [
+                "/Ox",
+                "/fp:fast",
+            ],
+            "extra_link_args": [],
+            "libraries": [],
+        },
     },
 }
+
+
+def make_extension(name, extension, defaults):
+    import numpy
+
+    include_dirs = extension.get("include_dirs", [])
+    include_dirs.append(numpy.get_include())
+
+    libraries = extension.get("libraries", [])
+    libraries.extend(defaults["libraries"])
+
+    extra_compile_args = extension.get("extra_compile_args", [])
+    extra_compile_args.extend(defaults["extra_compile_args"])
+
+    extra_link_args = extension.get("extra_link_args", [])
+    extra_link_args.extend(defaults["extra_compile_args"])
+
+    return Extension(
+        name,
+        sources=extension["sources"],
+        include_dirs=include_dirs,
+        libraries=libraries,
+        extra_compile_args=extra_compile_args,
+        extra_link_args=extra_link_args,
+        define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")],
+    )
+
 
 if __name__ == "__main__":
     from Cython.Build import cythonize
 
-    def include_dirs(*args):
-        return [np_include_dirs(), *args]
+    build_type = os.getenv("WILDBOAR_BUILD", "default")
+    build_nthreads = int(os.getenv("WILDBOAR_BUILD_NTHREADS", "1"))
+    build_args = BUILD_ARGS.get(build_type, {}).get(os.name, None)
 
-    build_args = BUILD_ARGS.get(BUILD_TYPE)
     if build_args is None:
-        raise RuntimeError("%s is not a valid build type" % BUILD_TYPE)
+        raise RuntimeError(f"{build_type} is not a valid build type")
+
+    external_extra_compile_args = os.getenv("WILDBOAR_EXTRA_COMPILE_ARGS")
+    if external_extra_compile_args is not None:
+        import re
+
+        build_args["extra_compile_args"].extend(
+            re.split(r"\s+", external_extra_compile_args)
+        )
+
+    if os.name == "posix":
+        build_args["libraries"].append("m")
 
     extensions = {
-        "wildboar.utils.misc": {
-            "sources": ["src/wildboar/utils/misc.pyx"],
-            "include_dirs": include_dirs(),
+        "wildboar.distance.*": {
+            "sources": ["src/wildboar/distance/*.pyx"],
         },
-        "wildboar.distance._distance": {
-            "sources": ["src/wildboar/distance/_distance.pyx"],
-            "include_dirs": include_dirs(),
+        "wildboar.tree.*": {
+            "sources": ["src/wildboar/tree/*.pyx"],
         },
-        "wildboar.distance._euclidean_distance": {
-            "sources": ["src/wildboar/distance/_euclidean_distance.pyx"],
-            "include_dirs": include_dirs(),
+        "wildboar.transform.*": {
+            "sources": ["src/wildboar/transform/*.pyx"],
         },
-        "wildboar.distance._dtw_distance": {
-            "sources": ["src/wildboar/distance/_dtw_distance.pyx"],
-            "include_dirs": include_dirs(),
-        },
-        "wildboar.distance._mass": {
-            "sources": ["src/wildboar/distance/_mass.pyx"],
-            "include_dirs": include_dirs(),
-        },
-        "wildboar.distance._matrix_profile": {
-            "sources": ["src/wildboar/distance/_matrix_profile.pyx"],
-            "include_dirs": include_dirs(),
-        },
-        "wildboar.tree._ctree": {
-            "sources": ["src/wildboar/tree/_ctree.pyx"],
-            "include_dirs": include_dirs(),
-        },
-        "wildboar.tree._cptree": {
-            "sources": ["src/wildboar/tree/_cptree.pyx"],
-            "include_dirs": include_dirs(),
-        },
-        "wildboar.embed._feature": {
-            "sources": ["src/wildboar/embed/_feature.pyx"],
-            "include_dirs": include_dirs(),
-        },
-        "wildboar.embed._shapelet_fast": {
-            "sources": ["src/wildboar/embed/_shapelet_fast.pyx"],
-            "include_dirs": include_dirs(),
-        },
-        "wildboar.embed._rocket_fast": {
-            "sources": ["src/wildboar/embed/_rocket_fast.pyx"],
-            "include_dirs": include_dirs(),
-        },
-        "wildboar.embed._cinterval": {
-            "sources": ["src/wildboar/embed/_cinterval.pyx"],
-            "include_dirs": include_dirs(),
-        },
-        "wildboar.embed._cpivot": {
-            "sources": ["src/wildboar/embed/_cpivot.pyx"],
-            "include_dirs": include_dirs(),
-        },
-        "wildboar.embed._embed_fast": {
-            "sources": ["src/wildboar/embed/_embed_fast.pyx"],
-            "include_dirs": include_dirs(),
-        },
-        "wildboar.embed.catch22._catch22": {
+        "wildboar.transform.catch22._catch22": {
             "sources": [
-                "src/wildboar/embed/catch22/_catch22.pyx",
-                "src/wildboar/embed/catch22/src/catch22.c",
+                "src/wildboar/transform/catch22/_catch22.pyx",
+                "src/wildboar/transform/catch22/src/catch22.c",
             ],
-            "include_dirs": include_dirs("src/wildboar/embed/catch22/src/"),
+            "include_dirs": ["src/wildboar/transform/catch22/src/"],
         },
         "wildboar.utils._fft._pocketfft": {
             "sources": [
                 "src/wildboar/utils/_fft/_pocketfft.pyx",
                 "src/wildboar/utils/_fft/src/pocketfft.c",
             ],
-            "include_dirs": include_dirs("src/wildboar/utils/_fft/src/"),
+            "include_dirs": ["src/wildboar/utils/_fft/src/"],
         },
-        "wildboar.utils.stats": {
-            "sources": ["src/wildboar/utils/stats.pyx"],
-            "include_dirs": include_dirs(),
-        },
-        "wildboar.utils.rand": {
-            "sources": ["src/wildboar/utils/rand.pyx"],
-            "include_dirs": include_dirs(),
-        },
-        "wildboar.utils.data": {
-            "sources": ["src/wildboar/utils/data.pyx"],
-            "include_dirs": include_dirs(),
-        },
-        "wildboar.utils.parallel": {
-            "sources": ["src/wildboar/utils/parallel.pyx"],
-            "include_dirs": include_dirs(),
-        },
+        "wildboar.utils.*": {"sources": ["src/wildboar/utils/*.pyx"]},
     }
     ext_modules = [
-        Extension(name, **options, **build_args) for name, options in extensions.items()
+        make_extension(name, options, build_args)
+        for name, options in extensions.items()
     ]
 
-    setup(ext_modules=cythonize(ext_modules))
+    setup(
+        ext_modules=cythonize(
+            ext_modules,
+            nthreads=build_nthreads,
+            annotate=build_type == "debug",
+        )
+    )

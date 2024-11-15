@@ -1,29 +1,21 @@
-# This file is part of wildboar
-#
-# wildboar is free software: you can redistribute it and/or modify it
-# under the terms of the GNU Lesser General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# wildboar is distributed in the hope that it will be useful, but
-# WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser
-# General Public License for more details.
-#
-# You should have received a copy of the GNU Lesser General Public License
-# along with this program. If not, see <http://www.gnu.org/licenses/>.
-import numpy as np
+# Authors: Isak Samsten
+# License: BSD 3 clause
+"""
+Plotting utilities.
+"""
 
-from wildboar.utils import check_array
+import numpy as np
+from sklearn.utils import column_or_1d, resample
+
+from ..utils.validation import check_array
 
 try:
-    import matplotlib.pylab as plt
-    from matplotlib.cm import get_cmap
     from matplotlib.collections import LineCollection
     from matplotlib.colors import Normalize
     from matplotlib.lines import Line2D
+    from matplotlib.pyplot import get_cmap, subplots
 except ModuleNotFoundError as e:
-    from wildboar.utils import DependencyMissing
+    from ..utils import DependencyMissing
 
     matplotlib_missing = DependencyMissing(e, package="matplotlib")
     plt = matplotlib_missing
@@ -32,12 +24,26 @@ except ModuleNotFoundError as e:
     LineCollection = matplotlib_missing
     Line2D = matplotlib_missing
 
+__all__ = ["plot_time_domain", "plot_frequency_domain"]
 
+
+# noqa: H0002
 class MidpointNormalize(Normalize):
-    """Normalise the colorbar."""
+    """
+    Normalise values with a specified midpoint.
 
-    def __init__(self, vmin=None, vmax=None, midpoint=None, clip=False):
-        super().__init__(vmin, vmax, clip)
+    Parameters
+    ----------
+    vmin : float, optional
+        The minumum value.
+    vmax : float, optional
+        The maximum value.
+    midpoint : float, optional
+        The midpoint of the values.
+    """
+
+    def __init__(self, vmin=None, vmax=None, midpoint=None):
+        super().__init__(vmin, vmax, clip=False)
         self.midpoint = midpoint
 
     def __call__(self, value, clip=None):
@@ -47,41 +53,82 @@ class MidpointNormalize(Normalize):
 
 def plot_time_domain(
     x,
-    *,
     y=None,
+    *,
+    n_samples=100,
     ax=None,
     alpha=0.5,
     linewidth=0.5,
     zorder=-1,
     cmap="Dark2",
+    show_legend=8,
 ):
-    """Plot the samples in the time domain
+    """
+    Plot the samples in the time domain.
 
     Parameters
     ----------
     x : array-like of shape (n_sample, n_timestep)
-        The samples
+        The samples.
     y : array-like of shape (n_samples, ), optional
-        The labels, by default None
+        The labels, assumed to be discrete labels.
+    n_samples : int, optional
+        The maximum number of samples to plot. If n_samples is larger than the number
+        of samples in x or None, all samples are plotted.
     ax : Axes, optional
-        The matplotlib Axes-object, by default None
+        The matplotlib Axes-object.
+    alpha : float, optional
+        The opacity of the samples.
+    linewidth : float, optional
+        The width of the sample lines.
+    zorder : int, optional
+        The order where the samples are plotted. By default we plot the samples
+        at -1.
     cmap : str, optional
-        The colormap, by default "Dark2"
+        The colormap used to colorize samples according to its label.
+    show_legend : bool or int, optional
+        Whether the legend of labels are show.
+
+        - if bool, show the legend if y is not None
+        - if int, show the legend if the number of labels are lower than the
+          show_legend parameter value
+
+    Returns
+    -------
+    Axes
+        The axes object that has been plotted.
+
+    Examples
+    --------
+    >>> from wildboar.utils.plot import plot_time_domain
+    >>> from wildboar.datasets import load_gun_point
+    >>> X, y = load_gun_point(X, y)
+    >>> plot_time_domain(X, y, n_sample=10)
     """
     if ax is None:
-        fig, ax = plt.subplots()
+        fig, ax = subplots()
 
-    x = check_array(np.atleast_2d(x), allow_multivariate=False, contiguous=False)
+    x = check_array(np.atleast_2d(x), input_name="x", allow_3d=False, order=None)
     if y is not None:
-        y = check_array(y, ensure_2d=False, allow_nd=False, contiguous=False)
+        y = column_or_1d(y, warn=True)
         if y.shape[0] != x.shape[0]:
-            raise ValueError()
+            raise ValueError("The number of labels and samples are not the same.")
 
-        label, idx, inv = np.unique(y, return_inverse=True, return_index=True)
-        cmap = get_cmap(cmap, len(label))
+        labels, idx, inv = np.unique(y, return_inverse=True, return_index=True)
+        cmap = get_cmap(cmap, len(labels))
     else:
         cmap = get_cmap(cmap, 1)
         inv = np.zeros(x.shape[0])
+
+    if n_samples is not None:
+        x, inv = resample(
+            x,
+            inv,
+            replace=False,
+            n_samples=n_samples if n_samples < x.shape[0] else x.shape[0],
+            stratify=y,
+            random_state=0,
+        )
 
     x_axis = np.arange(x.shape[-1] + 1)
     collection = LineCollection(
@@ -92,10 +139,18 @@ def plot_time_domain(
         alpha=alpha,
     )
     ax.add_collection(collection)
-    if y is not None:
-        ax.legend([Line2D([0], [0], color=cmap(inv[i])) for i in idx], label)
 
-    ax.set_xlim([0, x.shape[-1] - 1])
+    if y is not None and (show_legend is True or len(labels) <= show_legend):
+        legend = ax.legend(
+            [Line2D([0], [0], color=cmap(i)) for i in idx],
+            labels,
+            loc="best",
+            ncol=(len(labels) // 3) + 1,
+        )
+        legend.set_zorder(100)
+        ax.add_artist(legend)
+
+    ax.set_xlim([1, x.shape[-1] - 1])
     ax.set_ylim([np.min(x) - np.std(x), np.max(x) + np.std(x)])
 
     return ax
@@ -103,57 +158,97 @@ def plot_time_domain(
 
 def plot_frequency_domain(
     x,
-    *,
     y=None,
+    *,
     ax=None,
+    n_samples=100,
     jitter=False,
+    spectrum="amplitude",
     sample_spacing=1,
-    frequency=False,
+    bins=None,
     cmap="Dark2",
 ):
-    """Plot the samples in the freqency domain
+    """
+    Plot the samples in the frequency domain.
 
     Parameters
     ----------
     x : array-like of shape (n_sample, n_timestep)
-        The samples
+        The samples.
     y : array-like of shape (n_samples, ), optional
-        The labels, by default None
+        The labels.
     ax : Axes, optional
-        The matplotlib Axes-object, by default None
+        The matplotlib Axes-object.
+    n_samples : int, optional
+        The maximum number of samples to plot. If n_samples is larger than the number
+        of samples in x or None, all samples are plotted.
     jitter : bool, optional
-        Add jitter to the amplitude lines, by default False
+        Add jitter to the amplitude lines.
+    spectrum : {"amplitude", "phase"}, optional
+        The spectrum.
     sample_spacing : int, optional
-        The frequency domain sample spacing, by default 1
-    frequency : bool, optional
-        Show the frequency bins, by default False
+        The frequency domain sample spacing.
+    bins : bool, optional
+        Show the frequency bins.
     cmap : str, optional
-        The colormap, by default "Dark2"
+        The colormap.
+
+    Returns
+    -------
+    Axes
+        The axes object that has been plotted.
+
+    Examples
+    --------
+    >>> from wildboar.utils.plot import plot_frequency_domain
+    >>> from wildboar.datasets import load_gun_point
+    >>> X, y = load_gun_point(X, y)
+    >>> plot_frequency_domain(X, y, n_sample=10)
     """
+    if spectrum not in ("amplitude", "phase"):
+        raise ValueError("spectrum must be one of 'amplitude' or 'phase'")
+
     if ax is None:
-        fig, ax = plt.subplots()
+        fig, ax = subplots()
 
-    x = check_array(x, allow_multivariate=False, contiguous=False)
+    x = check_array(x, allow_3d=False, order=None)
     if y is not None:
-        y = check_array(1, ensure_2d=False, allow_nd=False, contiguous=False)
+        y = check_array(y, ensure_2d=False, allow_nd=False, order=None)
         if y.shape[0] != x.shape[0]:
-            raise ValueError()
+            raise ValueError("The number of samples and lables are not the same.")
 
-        label, idx, inv = np.unique(y, return_inverse=True, return_index=True)
-        cmap = get_cmap(cmap, len(label))
+        labels, idx, inv = np.unique(y, return_inverse=True, return_index=True)
+        cmap = get_cmap(cmap, len(labels))
     else:
         cmap = get_cmap(cmap, 1)
         inv = np.zeros(x.shape[0])
 
+    x, inv = resample(
+        x,
+        inv,
+        replace=False,
+        n_samples=n_samples if n_samples < x.shape[0] else x.shape[0],
+        stratify=y,
+        random_state=0,
+    )
+
     n_freqs = int(x.shape[-1] // 2)
-    x_freq = np.abs(np.fft.fft(x, axis=1)[:, 1 : n_freqs + 1]) / n_freqs
-    x_axis = np.arange(1, n_freqs + 1)
+    fft = np.fft.fft(x, axis=1)[:, :n_freqs]
+
+    if spectrum == "amplitude":
+        x_freq = np.abs(fft)
+    else:
+        x_freq = np.angle(fft)
+        x_freq[:, 0] = 0
+
+    x_axis = np.arange(0, n_freqs)
     max_freq = np.max(x_freq)
-    if frequency:
-        for i in x_axis:
+    min_freq = np.min(x_freq)
+    if bins is not None:
+        for start, end in bins:
             ax.axvspan(
-                i - 0.5,
-                i + 0.5,
+                start - 0.5,
+                end - 0.5,
                 0,
                 1,
                 facecolor=None,
@@ -162,10 +257,14 @@ def plot_frequency_domain(
                 alpha=0.05,
                 zorder=-100,
             )
-    ax.set_ylabel("Amplitude")
+    if spectrum == "amplitude":
+        ax.set_ylabel("Amplitude")
+    else:
+        ax.set_ylabel("Phase")
+
     for i in range(x.shape[0]):
         if jitter:
-            x_axis_tmp = x_axis + np.random.normal(scale=0.5, size=n_freqs)
+            x_axis_tmp = x_axis + np.random.normal(scale=0.1, size=n_freqs)
         else:
             x_axis_tmp = x_axis
 
@@ -173,21 +272,23 @@ def plot_frequency_domain(
             x_axis_tmp,
             0,
             x_freq[i],
-            color=cmap(idx[i]),
+            color=cmap(inv[i]),
             alpha=0.3,
             linewidth=1,
             zorder=-1,
         )
 
     if y is not None:
-        ax.legend([Line2D([0], [0], color=cmap(inv[i])) for i in idx], label)
+        legend = ax.legend(
+            [Line2D([0], [0], color=cmap(i)) for i in idx],
+            labels,
+            loc="best",
+            ncol=(len(labels) // 3) + 1,
+        )
 
-    ticks = ax.get_xticks().astype(int)[: len(x_axis)]
-    ticks[0] = 1
-    ax.set_xticks(ticks)
-    x_label = np.fft.fftfreq(x.shape[-1], d=sample_spacing)[ticks]
-    ax.set_xticklabels("%.2f" % lab for lab in x_label)
-    ax.set_xlim([0.5, n_freqs + 0.5])
-    ax.set_ylim(0, max_freq)
+        ax.add_artist(legend)
+
+    ax.set_xlim([-0.5, n_freqs + 1.5])
+    ax.set_ylim(min_freq - np.std(x_freq) / 3, max_freq + np.std(x_freq) / 3)
 
     return ax

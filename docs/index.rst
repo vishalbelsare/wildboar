@@ -1,44 +1,81 @@
-===================
-Welcome to wildboar
-===================
+.. div:: landing-title
+   :style: padding: 0.1rem 0.5rem 0.6rem 0; background-image: linear-gradient(315deg, #973c8c 0%, #343067 74%); clip-path: polygon(0px 0px, 100% 0%, 100% 100%, 0% calc(100% - 1.5rem)); -webkit-clip-path: polygon(0px 0px, 100% 0%, 100% 100%, 0% calc(100% - 1.5rem));
 
-Wildboar is a package for supervised and unsupervised machine learning for time
-series data.
+   .. grid::
+      :reverse:
+      :gutter: 2 3 3 3
+      :margin: 4 4 1 2
+
+      .. grid-item::
+         :columns: 12 4 4 4
+
+         .. image:: ./_static/logo.svg
+            :width: 200px
+            :class: sd-m-auto dark-light wb-drop-shadow
+
+      .. grid-item::
+         :columns: 12 8 8 8
+         :child-align: justify
+         :class: sd-fs-3 sd-text-white sd-font-weight-bolder
+
+         Efficient, simple and familiar temporal machine learning in Python.
+
+         .. grid::
+            :gutter: 0
+            :margin: 0
+
+            .. grid-item::
+               :columns: 6
+
+               .. button-ref:: install
+                  :ref-type: doc
+                  :outline:
+                  :color: light
+                  :class: sd-px-4 sd-fs-5
+
+            .. grid-item::
+               :columns: 6
+
+               .. button-ref:: more/whatsnew
+                  :ref-type: doc
+                  :outline:
+                  :color: light
+                  :class: sd-px-4 sd-fs-5
+
+
+.. grid:: 1 1 2 2
+
+   .. grid-item-card::
+      :padding: 2
+      :link: guide
+      :link-type: doc
+      :text-align: center
+
+      :fas:`person-running;10em` Getting started
+      ^^^
+
+      New to *Wildboar*? Check out the getting started guide! It contains an
+      introduction to the main concepts.
+
+   .. grid-item-card::
+      :padding: 2
+      :link: api/index
+      :link-type: doc
+      :text-align: center
+
+      :fas:`book;10em` API Reference
+      ^^^
+
+      The reference guide contains detailed descriptions of the Wildboar API.
+      The reference describe what methods, classes and which parameters can be
+      used.
 
 .. toctree::
-   :hidden:
-   :maxdepth: 3
+  :maxdepth: 3
+  :hidden:
 
-   install
-   tutorial
-   guide
-   examples
-   API Reference <wildboar/index>
+  Install <install>
+  guide
+  api/index
+  more/whatsnew
 
-.. panels::
-
-   Classification
-   ^^^^^^^^^^^^^^
-
-   Identifying which category a time series belong to.
-
-   **Algorithms**: Random shapelet forest and Extra shapelet trees
-
-   ---
-
-   Regression
-   ^^^^^^^^^^
-
-   Predicting a continuous-valued attribute associated with a time series.
-
-   **Algorithms**: Random shapelet forest and Extra shapelet trees 
-
-   ---
-
-   Counterfactuals
-   ^^^^^^^^^^^^^^^
-
-   Explaining time series classifiers by counterfactual reasoning.
-
-   **Algorithms**: Shapelet forest counterfactuals, KNearest counterfactuals and
-   Prototype counterfactuals

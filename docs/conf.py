@@ -7,19 +7,34 @@
 # -- Path setup --------------------------------------------------------------
 
 import os
+import pkgutil
+import pathlib
 import sys
 
-SEM_VER_REGEX = r"^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"  # noqa E501
+from importlib import metadata
+from sphinx.util.logging import getLogger
 
-from pkg_resources import get_distribution, parse_version
+import wildboar
 
-release = get_distribution("wildboar").version
-version = ".".join(release.split(".")[:3])
+sys.path.insert(0, os.path.abspath("_gen_figures"))
+sys.path.insert(0, os.path.abspath(".") + "/_extensions")
+
+logger = getLogger(__name__)
+
+release = wildboar.__version__
+version = release
+
+if ".dev" in version:
+    version_match = "dev"
+else:
+    version_match = ".".join(version.split(".")[:2])
+
+logger.info("Building documentation for %s, matching %s", version, version_match)
 # -- Project information -----------------------------------------------------
 
 project = "Wildboar"
 description = "Time series learning with Python"
-copyright = "2020, Isak Samsten"
+copyright = "2023, Isak Samsten"
 author = "Isak Samsten"
 
 # -- General configuration ---------------------------------------------------
@@ -28,12 +43,18 @@ author = "Isak Samsten"
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    "sphinx.ext.napoleon",
-    "sphinx.ext.linkcode",
     "autoapi.extension",
-    "sphinx_multiversion",
-    "sphinx_panels",
+    "execute",
+    "numpydoc",
+    "sphinx.ext.intersphinx",
+    "sphinx.ext.linkcode",
+    "sphinx.ext.mathjax",
+    "sphinx_copybutton",
+    "sphinx_design",
+    "sphinx_inline_tabs",
+    "sphinx_toggleprompt",
 ]
+
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
@@ -43,190 +64,134 @@ templates_path = ["_templates"]
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
-autoapi_dirs = "autoapi"
-autoapi_root = "."
+intersphinx_mapping = {
+    "numpy": ("https://numpy.org/doc/stable", None),
+    "sklearn": ("https://scikit-learn.org/stable/", None),
+}
+
+pygments_style = "github-light-colorblind"
+pygments_dark_style = "github-dark-colorblind"
+syntax_highlight = "short"
+add_function_parentheses = False
+
+autoapi_dirs = ["../src/"]
+autoapi_root = "api"
 autoapi_template_dir = "_templates/autoapi/"
 autoapi_ignore = ["*tests*", "_*.py"]
 autoapi_keep_files = True
-autoapi_add_toctree_entry = False
-autoapi_python_class_content = "both"
+autoapi_add_toctree_entry = True
+autoapi_python_class_content = "class"
 autoapi_member_order = "groupwise"
 
 autoapi_options = [
     "members",
-    "undoc-members",
-    "show-inheritance",
+    # "undoc-members",
+    # "show-inheritance",
     "show-module-summary",
-    "special-members",
+    # "special-members",
     "imported-members",
+    "inherited-members",
 ]
-# -- Options for HTML output -------------------------------------------------
 
-# The theme to use for HTML and HTML Help pages.  See the documentation for
-# a list of builtin themes.
-#
-html_theme = "furo"
+html_theme = "pydata_sphinx_theme"
 html_theme_options = {
-    "light_logo": "logo.png",
-    "dark_logo": "logo.png",
-}
-html_sidebars = {
-    "**": [
-        "sidebar/scroll-start.html",
-        "brand.html",
-        "sidebar/search.html",
-        "sidebar/navigation.html",
-        "versions.html",
-        "sidebar/scroll-end.html",
+    "logo": {
+        "text": "Wildboar",
+        "image_light": "logo.png",
+        "image_dark": "logo.png",
+    },
+    "show_version_warning_banner": True,
+    "navbar_start": ["navbar-logo", "version-switcher"],
+    "switcher": {
+        "json_url": "https://wildboar.dev/_versions.json",
+        "version_match": version_match,
+    },
+    "check_switcher": False,
+    "icon_links": [
+        {
+            "name": "GitHub",
+            "url": "https://github.com/wildboar-foundation/wildboar/",
+            "icon": "fa-brands fa-github",
+            "type": "fontawesome",
+        },
+        {
+            "name": "PyPI",
+            "url": "https://pypi.org/project/wildboar/",
+            "icon": "fa-custom fa-pypi",
+        },
     ],
+    "navigation_with_keys": False,
 }
-# Add any paths that contain custom static files (such as style sheets) here,
-# relative to this directory. They are copied after the builtin static files,
-# so a file named "default.css" will overwrite the builtin "default.css".
+
+html_context = {
+    "default_mode": "auto",
+}
+
 html_static_path = ["_static"]
-smv_branch_whitelist = r"^master|\d+\.\d+\.X$"
-smv_remote_whitelist = r"^origin$"
-smv_released_pattern = r"^refs/(heads|remotes)/\d+\.\d+\.X$"
-smv_tag_whitelist = None
+html_css_files = [
+    "css/custom.css",
+    "css/pygments-override.css",
+]
+html_js_files = ["js/fa.js"]
+
+rst_prolog = """
+.. role:: python(code)
+   :language: python
+   :class: highlight
+"""
+
+execute_pre_code = """
+import numpy as np
+from matplotlib import pyplot as plt
+np.set_printoptions(threshold=30)
+"""
+
+execute_light_dark = True
+execute_black = True
 
 
-def setup(app):
+# Find the source file given a module
+def find_source(info):
     import importlib
     import inspect
-    import pathlib
-    import re
 
-    from sphinx.util.logging import getLogger
+    obj = importlib.import_module(info["module"])
+    for part in info["fullname"].split("."):
+        obj = getattr(obj, part)
 
-    logger = getLogger(__name__)
+    fn = os.path.normpath(inspect.getsourcefile(obj))
+    fn_split = fn.split(os.sep)
+    fn_index = fn_split.index("wildboar")
+    fn = os.path.join(*fn_split[fn_index:])
+    source, lineno = inspect.getsourcelines(obj)
+    return fn, lineno, lineno + len(source) - 1
 
-    def is_tag_for(gitref, major, minor):
-        p = parse_version(gitref.name)
-        return gitref.source == "tags" and p.major == major and p.minor == minor
 
-    # Build the local version of wildboar into a temporary directory
-    def build_local_version(app):
-        import subprocess
+def linkcode_resolve(domain, info):
+    if domain != "py" or not info["module"]:
+        return None
+    try:
+        filename = "%s#L%d-L%d" % find_source(info)
+    except:
+        filename = info["module"].replace(".", "/") + ".py"
 
-        logger.info("[CONF] building and installing local version")
-        env = os.environ.copy()
-        env["SETUPTOOLS_SCM_PRETEND_VERSION"] = "99.9.99"
-        version_file = os.path.join(app.srcdir, "../src/wildboar/version.py")
-        with open(os.path.abspath(version_file), "w") as f:
-            f.write("version='99.9.99'")  # dummy version
+    return "https://github.com/wildboar-foundation/wildboar/blob/%s/src/%s" % (
+        "master" if ".dev" in version else "v%s" % version,
+        filename,
+    )
 
-        # Build and install local version in temporary directory
-        output = subprocess.run(
-            ["python", "-m", "pip", "install", "--target", "../_build", "."],
-            cwd=os.path.abspath(os.path.join(app.srcdir, "..")),
-            env=env,
-        )
-        output.check_returncode()  # Abort if build failed
 
-    # Find the source file given a module
-    def find_source(info):
-        obj = importlib.import_module(info["module"])
-        for part in info["fullname"].split("."):
-            obj = getattr(obj, part)
-
-        fn = os.path.normpath(inspect.getsourcefile(obj))
-        fn_split = fn.split(os.sep)
-        fn_index = fn_split.index("wildboar")
-        fn = os.path.join(*fn_split[fn_index:])
-        source, lineno = inspect.getsourcelines(obj)
-        return fn, lineno, lineno + len(source) - 1
-
-    def read_latest_version(app, config):
-
-        build_local_version(app)
-
-        def linkcode_resolve(domain, info):
-            sys.path.insert(0, "../_build/")  # Insert the local build dir first in path
-            from wildboar import __version__
-
-            if __version__ != "99.9.99":  # ensure we are using the local build
-                raise ValueError("Local build failed")
-
-            if domain != "py" or not info["module"]:
-                return None
-            try:
-                filename = "%s#L%d-L%d" % find_source(info)
-            except:
-                filename = info["module"].replace(".", "/") + ".py"
-
-            del sys.path[0]
-            return "https://github.com/isaksamsten/wildboar/blob/%s/src/%s" % (
-                config.smv_current_version,
-                filename,
-            )
-
-        config.linkcode_resolve = linkcode_resolve
-        if not hasattr(config, "smv_metadata") or len(config.smv_metadata) == 0:
-            return
-
-        logger.info("[CONF] installed version %s", config.release)
-
-        from sphinx_multiversion import git
-
-        gitroot = pathlib.Path(
-            git.get_toplevel_path(cwd=os.path.abspath(app.confdir))
-        ).resolve()
-        gitrefs = list(git.get_all_refs(gitroot))
-        latest_version_tags = {}
-        for ver, metadata in config.smv_metadata.items():
-            current_version = re.match(r"(\d)\.(\d)(?:.X)?", ver)
-            if current_version:
-                major = int(current_version.group(1))
-                minor = int(current_version.group(2))
-                matching_tags = [
-                    re.sub("^v", "", gitref.name)
-                    for gitref in gitrefs
-                    if is_tag_for(gitref, major, minor)
-                ]
-                matching_tags.sort(key=parse_version)
-                latest_tag = matching_tags[-1] if matching_tags else ver
-                latest_version_tags[ver] = latest_tag
-            elif ver == "master":
-                latest_version_tags[ver] = config.version
-            else:
-                logger.warning("[CONF] using branch version for tag (%s)", ver)
-                latest_version_tags[ver] = ver
-
-            logger.info(
-                "[CONF] latest version tag for '%s' is '%s'",
-                ver,
-                latest_version_tags[ver],
-            )
-            metadata["version"] = latest_version_tags[ver]
-
-        if config.smv_current_version != "master":
-            config.version = config.smv_metadata[config.smv_current_version]["version"]
-            config.release = config.version
-
-        config.smv_latest_version_tags = latest_version_tags
-        config.smv_current_version_tag = latest_version_tags[config.smv_current_version]
-
-        version_sorted = sorted(
-            config.smv_metadata.keys(),
-            key=lambda x: parse_version(re.sub(".X$", "", x)),
-        )
-        # TODO: exclude pre-releases?
-        config.smv_latest_stable = version_sorted[-1] if version_sorted else "master"
-
-        logger.info("[DOCS] latest stable version is %s", config.smv_latest_stable)
-
-    def set_latest_version(app, pagename, templatename, context, doctree):
-        if not hasattr(app.config, "smv_metadata") or len(app.config.smv_metadata) == 0:
-            return
-
-        from sphinx_multiversion.sphinx import VersionInfo
-
-        versioninfo = VersionInfo(
-            app, context, app.config.smv_metadata, app.config.smv_current_version
-        )
-        context["current_version_tag"] = app.config.smv_current_version_tag
-        context["latest_version_tags"] = app.config.smv_latest_version_tags
-        context["latest_stable_version"] = versioninfo[app.config.smv_latest_stable]
-
-    app.connect("config-inited", read_latest_version)
-    app.connect("html-page-context", set_latest_version)
+# regenerate_plots = os.environ.get("REGENERATE_PLOTS", False)
+#
+# basepath = pathlib.Path("_static", "fig")
+# for modinfo in pkgutil.iter_modules(["_gen_figures"]):
+#     if modinfo.name.startswith("gen"):
+#         logger.info(f"Generating figures for: '{modinfo.name}'")
+#         module = modinfo.module_finder.find_module(modinfo.name).load_module(
+#             modinfo.name
+#         )
+#         funcs = list(module.__dict__.values())
+#         for func in funcs:
+#             if callable(func) and func.__name__.startswith("gen_"):
+#                 logger.info(f" - '{func.__name__}'")
+#                 func(basepath, force=regenerate_plots)

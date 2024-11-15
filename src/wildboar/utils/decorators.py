@@ -1,27 +1,10 @@
-# This file is part of wildboar
-#
-# wildboar is free software: you can redistribute it and/or modify it
-# under the terms of the GNU Lesser General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# wildboar is distributed in the hope that it will be useful, but
-# WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser
-# General Public License for more details.
-#
-# You should have received a copy of the GNU Lesser General Public License
-# along with this program. If not, see <http://www.gnu.org/licenses/>.
 # Authors: Isak Samsten
+# License: BSD 3 clause
 
 from functools import wraps
 
 import numpy as np
-
-__all__ = [
-    "array_or_scalar",
-    "singleton",
-]
+from sklearn.utils.validation import _is_arraylike_not_scalar
 
 
 def _array_or_scalar(x, squeeze=True):
@@ -34,17 +17,24 @@ def _array_or_scalar(x, squeeze=True):
         return np.squeeze(x) if squeeze else x
 
 
+# noqa: H0002
 def array_or_scalar(optional_f=None, squeeze=True):
-    """Decorate a function returning an ndarray to return a single scalar if the array
-    has a single item.
+    """
+    Decorate a function returning.
+
+    An ndarray to return a single scalar if the array has a single item.
 
     Parameters
     ----------
     optional_f : callable, optional
-        Used if the decorator is used without arguments
-
+        Used if the decorator is used without arguments.
     squeeze : bool, optional
-        Remove axis of length one from the returned arrays
+        Remove axis of length one from the returned arrays.
+
+    Returns
+    -------
+    function
+        Decorated function.
     """
 
     def decorator(f):
@@ -64,15 +54,31 @@ def array_or_scalar(optional_f=None, squeeze=True):
 
 
 def _singleton(x):
-    if isinstance(x, list):
-        return _singleton(x[0]) if len(x) == 1 else x
+    if _is_arraylike_not_scalar(x):
+        if isinstance(x, np.ndarray) and x.size == 1:
+            return x.item()
+        else:
+            return x[0] if len(x) == 1 else x
     else:
         return x
 
 
+# noqa: H0002
 def singleton(f):
-    """Recursivley try to unwrap list return arguments such that a single element can
-    be returned
+    """
+    Recursivley try to unwrap list return arguments.
+
+    Such that a single element can be returned.
+
+    Parameters
+    ----------
+    f : function
+        The function to wrap.
+
+    Returns
+    -------
+    function
+        The wrapper.
     """
 
     @wraps(f)
@@ -86,21 +92,24 @@ def singleton(f):
     return wrap
 
 
+# noqa: H0002
 def unstable(optional_f=None, stability="beta", description=None):
-    """Decorate a function or class as unsable
+    """
+    Decorate a function as unsatable.
 
     Parameters
     ----------
-
     optional_f : callable, optional
-        The decorated function
-
+        The decorated function.
     stability : str, optional
-        The stability of the feature
-
+        The stability of the feature.
     description : str, optional
-        The description of the feature
+        The description of the feature.
 
+    Returns
+    -------
+    function
+        Decorated function.
     """
     import warnings
 

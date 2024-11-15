@@ -1,19 +1,5 @@
-# This file is part of wildboar
-#
-# wildboar is free software: you can redistribute it and/or modify it
-# under the terms of the GNU Lesser General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# wildboar is distributed in the hope that it will be useful, but
-# WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser
-# General Public License for more details.
-#
-# You should have received a copy of the GNU Lesser General Public License
-# along with this program. If not, see <http://www.gnu.org/licenses/>.
-#
 # Authors: Isak Samsten
+# License: BSD 3 clause
 
 import math
 import warnings
@@ -26,12 +12,27 @@ from sklearn.utils.validation import check_array
 
 
 class RepeatedOutlierSplit(metaclass=ABCMeta):
-    """Repeated random outlier cross-validator
+    """
+    Repeated random outlier cross-validator.
 
-    Yields indicies that split the dataset into training and test sets.
+    Parameters
+    ----------
+    n_splits : int, optional
+        The maximum number of splits.
+        - if None, the number of splits is determined by the number of outliers
+        as, `total_n_outliers/(n_inliers * n_outliers)`
+        - if int, the number of splits is an upper-bound.
+    test_size : float, optional
+        The size of the test set.
+    n_outlier : float, optional
+        The fraction of outliers in the training and test sets.
+    shuffle : bool, optional
+        Shuffle the training indicies in each iteration.
+    random_state : int or RandomState, optional
+        The psudo-random number generator.
 
-    Note
-    ----
+    Notes
+    -----
     Contrary to other cross-validation strategies, the random outlier
     cross-validator does not ensure that all folds will be different.
     Instead, the inlier samples are shuffled and new outlier samples
@@ -47,30 +48,6 @@ class RepeatedOutlierSplit(metaclass=ABCMeta):
         shuffle=True,
         random_state=None,
     ):
-        """Construct a new cross-validator
-
-        Parameters
-        ----------
-        n_splits : int, optional
-            The maximum number of splits.
-
-            - if None, the number of splits is determined by the number of
-              outliers as, `total_n_outliers/(n_inliers * n_outliers)`
-
-            - if int, the number of splits is an upper-bound
-
-        test_size : float, optional
-            The size of the test set.
-
-        n_outlier : float, optional
-            The fraction of outliers in the training and test sets.
-
-        shuffle : bool, optional
-            Shuffle the training indicies in each iteration.
-
-        random_state : int or RandomState, optional
-            The psudo-random number generator
-        """
         self.n_outliers = n_outlier
         self.test_size = test_size
         self.n_splits = n_splits
@@ -78,18 +55,21 @@ class RepeatedOutlierSplit(metaclass=ABCMeta):
         self.random_state = random_state
 
     def get_n_splits(self, X, y, groups=None):
-        """Returns the number of splitting iterations in the cross-validator
+        """
+        Return the number of splitting iterations in the cross-validator.
+
         Parameters
         ----------
         X : object
-            The samples
+            The samples.
         y : object
-            The labels
-        groups : object
+            The labels.
+        groups : object, optional
             Always ignored, exists for compatibility.
+
         Returns
         -------
-        n_splits : int
+        int
             Returns the number of splitting iterations in the cross-validator.
         """
         outlier_index = (y == -1).nonzero()[0]
@@ -105,19 +85,20 @@ class RepeatedOutlierSplit(metaclass=ABCMeta):
         return n_splits
 
     def split(self, x, y, groups=None):
-        """Return training and test indicies
+        """
+        Return training and test indicies.
 
         Parameters
         ----------
         x : object
             Always ignored, exists for compatibility.
         y : object
-            The labels
+            The labels.
         groups : object, optional
             Always ignored, exists for compatibility.
 
         Yields
-        -------
+        ------
         train_idx, test_idx : ndarray
             The training and test indicies
         """

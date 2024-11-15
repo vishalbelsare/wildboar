@@ -1,32 +1,19 @@
 # cython: language_level=3
 
-# This file is part of wildboar
-#
-# wildboar is free software: you can redistribute it and/or modify it
-# under the terms of the GNU Lesser General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# wildboar is distributed in the hope that it will be useful, but
-# WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser
-# General Public License for more details.
-#
-# You should have received a copy of the GNU Lesser General Public License
-# along with this program. If not, see <http://www.gnu.org/licenses/>.
-#
 # Authors: Isak Samsten
+# License: BSD 3 clause
 
 cdef void _mass_distance(
-    double *x,
+    const double *x,
     Py_ssize_t x_length,
-    double *y,
+    const double *y,
     Py_ssize_t y_length,
     double mean,
     double std,
-    double *mean_x,    
-    double *std_x,     
-    complex *y_buffer, 
-    complex *x_buffer, 
-    double *dist,      
-) nogil
+    double *mean_x,
+    double *std_x,
+    complex *y_buffer,
+    complex *x_buffer,
+    double *dist,
+) noexcept nogil
+

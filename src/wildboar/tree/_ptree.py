@@ -1,106 +1,172 @@
-# This file is part of wildboar
-#
-# wildboar is free software: you can redistribute it and/or modify it
-# under the terms of the GNU Lesser General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# wildboar is distributed in the hope that it will be useful, but
-# WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser
-# General Public License for more details.
-#
-# You should have received a copy of the GNU Lesser General Public License
-# along with this program. If not, see <http://www.gnu.org/licenses/>.
-#
 # Authors: Isak Samsten
-import sys
+# License: BSD 3 clause
+
+import numbers
 import warnings
 
 import numpy as np
+from sklearn.utils._param_validation import Interval, StrOptions
 
-from wildboar.distance import _DISTANCE_MEASURE
-from wildboar.tree._cptree import (
+from wildboar.utils.validation import _check_ts_array, check_option
+
+from ..distance._distance import _METRICS
+from ..distance._multi_metric import make_metrics
+from ..tree._cptree import (
     EntropyCriterion,
     GiniCriterion,
     LabelPivotSampler,
     Tree,
     TreeBuilder,
-    UniformDistanceMeasureSampler,
+    UniformMetricSampler,
     UniformPivotSampler,
-    WeightedDistanceMeasureSampler,
+    WeightedMetricSampler,
 )
-from wildboar.tree.base import BaseTree, TreeClassifierMixin
-from wildboar.utils.data import check_dataset
-from wildboar.utils.decorators import unstable
+from ._base import BaseTree, BaseTreeClassifier
 
 _CLF_CRITERION = {
     "gini": GiniCriterion,
     "entropy": EntropyCriterion,
 }
+
 _PIVOT_SAMPLER = {
     "label": LabelPivotSampler,
     "uniform": UniformPivotSampler,
 }
-_DISTANCE_MEASURE_SAMPLER = {
-    "uniform": UniformDistanceMeasureSampler,
-    "weighted": WeightedDistanceMeasureSampler,
+
+_METRICS_SAMPLER = {
+    "uniform": UniformMetricSampler,
+    "weighted": WeightedMetricSampler,
 }
 
-
-def make_euclidean():
-    return [_DISTANCE_MEASURE["euclidean"]()]
-
-
-def make_dtw(min_r=0, max_r=0.25, n=10):
-    return [_DISTANCE_MEASURE["dtw"](r=r) for r in np.linspace(min_r, max_r, n)]
+_METRIC_NAMES = set(_METRICS.keys())
+_METRIC_NAMES.add("auto")
+_METRIC_NAMES = frozenset(_METRIC_NAMES)
 
 
-_METRICS = {"euclidean": make_euclidean, "dtw": make_dtw}
+# noqa: D409
+class ProximityTreeClassifier(BaseTreeClassifier):
+    """
+    A classifier that uses a k-branching tree based on pivot-time series.
 
+    Parameters
+    ----------
+    n_pivot : int, optional
+        The number of pivots to sample at each node.
+    criterion : {"entropy", "gini"}, optional
+        The impurity criterion.
+    pivot_sample : {"label", "uniform"}, optional
+        The pivot sampling method.
+    metric_sample : {"uniform", "weighted"}, optional
+        The metric sampling method.
+    metric : {"auto"}, str or list, optional
+        The distance metrics. By default, we use the parameterization suggested by
+        Lucas et.al (2019).
 
-def make_metrics(metrics=None, metrics_params=None):
-    if metrics is None:
-        metrics = ["euclidean", "dtw"]
-    if metrics_params is None:
-        metrics_params = [None, {"min_r": 0, "max_r": 0.25, "n": 20}]
+        - If "auto", use the default metric specification, suggested by
+          (Lucas et. al, 2020).
+        - If str, use a single metric or default metric specification.
+        - If list, custom metric specification can be given as a list of
+          tuples, where the first element of the tuple is a metric name and the
+          second element a dictionary with a parameter grid specification. A
+          parameter grid specification is a `dict` with two mandatory and one
+          optional key-value pairs defining the lower and upper bound on the
+          values as well as the number of values in the grid. For example, to
+          specifiy a grid over the argument 'r' with 10 values in the range 0
+          to 1, we would give the following specification:
+          `dict(min_r=0, max_r=1, num_r=10)`.
 
-    distance_measures = []
-    weights = []
-    weight = 1.0 / len(metrics)
-    for metric, metric_params in zip(metrics, metrics_params):
-        if callable(metric):
-            _metrics = metric(**(metric_params) or {})
-        elif metric not in _METRICS:
-            raise ValueError("metric (%r) is not supported" % metric)
+        Read more about the metrics and their parameters in the
+        :ref:`User guide <list_of_metrics>`.
+    metric_params : dict, optional
+        Parameters for the distance measure. Ignored unless metric is a string.
 
-        _metrics = _METRICS[metric](**(metric_params or {}))
-        for distance_measure in _metrics:
-            distance_measures.append(distance_measure)
-            weights.append(weight / len(_metrics))
+        Read more about the parameters in the :ref:`User guide
+        <list_of_metrics>`.
+    metric_factories : dict, optional
+        A metric specification.
 
-    return distance_measures, np.array(weights, dtype=np.double)
+        .. deprecated:: 1.2
+            Use the combination of metric and metric params.
+    max_depth : int, optional
+        The maximum tree depth.
+    min_samples_split : int, optional
+        The minimum number of samples to consider a split.
+    min_samples_leaf : int, optional
+        The minimum number of samples in a leaf.
+    min_impurity_decrease : float, optional
+        The minimum impurity decrease to build a sub-tree.
+    class_weight : dict or "balanced", optional
+        Weights associated with the labels.
 
-
-@unstable
-class ProximityTreeClassifier(TreeClassifierMixin, BaseTree):
-    """A proximity tree defines a k-branching tree based on pivot-time series.
-
-    Examples
-    --------
-    >>> from wildboar.datasets import load_dataset
-    >>> from wildboar.tree import ProximityTreeClassifier
-    >>> x, y = load_dataset("GunPoint")
-    >>> f = ProximityTreeClassifier(n_pivot=10, criterion="gini")
-    >>> f.fit(x, y)
+        - if dict, weights on the form {label: weight}.
+        - if "balanced" each class weight inversely proportional to the class
+            frequency.
+        - if None, each class has equal weight.
+    random_state : int or RandomState
+        - If `int`, `random_state` is the seed used by the random number generator
+        - If `RandomState` instance, `random_state` is the random number generator
+        - If `None`, the random number generator is the `RandomState` instance used
+            by `np.random`.
 
     References
     ----------
-    Lucas, Benjamin, Ahmed Shifaz, Charlotte Pelletier, Lachlan O’Neill, Nayyar Zaidi,
+    Lucas, Benjamin, Ahmed Shifaz, Charlotte Pelletier, Lachlan O'Neill, Nayyar Zaidi, \
     Bart Goethals, François Petitjean, and Geoffrey I. Webb. (2019)
         Proximity forest: an effective and scalable distance-based classifier for time
         series. Data Mining and Knowledge Discovery
+
+    Examples
+    --------
+    Fit a single proximity tree, with dynamic time warping and move-split-merge metrics.
+
+    >>> from wildboar.datasets import load_dataset
+    >>> from wildboar.tree import ProximityTreeClassifier
+    >>> x, y = load_dataset("GunPoint")
+    >>> f = ProximityTreeClassifier(
+    ...     n_pivot=10,
+    ...     metrics=[
+    ...         ("dtw", {"min_r": 0.1, "max_r": 0.25}),
+    ...         ("msm", {"min_c": 0.1, "max_c": 100, "num_c": 20})
+    ...     ],
+    ...     criterion="gini"
+    ... )
+    >>> f.fit(x, y)
+
     """
+
+    _parameter_constraints: dict = {
+        **BaseTree._parameter_constraints,
+        "n_pivot": [
+            Interval(numbers.Integral, 1, None, closed="left"),
+        ],
+        "criterion": [
+            StrOptions(_CLF_CRITERION.keys()),
+        ],
+        "pivot_sample": [
+            StrOptions(_PIVOT_SAMPLER.keys()),
+        ],
+        "metric_sample": [
+            StrOptions(_METRICS_SAMPLER.keys()),
+        ],
+        "metric": [
+            StrOptions(_METRIC_NAMES),
+            list,
+            dict,
+        ],
+        "metric_params": [None, dict],
+        "metric_factories": [  # TODO(1.4)
+            StrOptions({"auto"}),
+            list,
+            None,
+        ],
+        "random_state": ["random_state"],
+        "class_weight": [
+            StrOptions({"balanced"}),
+            dict,
+            None,
+        ],
+    }
+    _parameter_constraints.pop("impurity_equality_tolerance")
 
     def __init__(
         self,
@@ -109,9 +175,9 @@ class ProximityTreeClassifier(TreeClassifierMixin, BaseTree):
         criterion="entropy",
         pivot_sample="label",
         metric_sample="weighted",
-        metrics=None,
-        metrics_params=None,
-        force_dim=None,
+        metric="auto",
+        metric_params=None,
+        metric_factories=None,
         max_depth=None,
         min_samples_split=2,
         min_samples_leaf=1,
@@ -119,36 +185,7 @@ class ProximityTreeClassifier(TreeClassifierMixin, BaseTree):
         class_weight=None,
         random_state=None,
     ):
-        """
-        Parameters
-        ----------
-        n_pivot : int, optional
-            The number of pivots to sample at each node.
-        criterion : {"entropy", "gini"}, optional
-            The impurity criterion.
-        pivot_sample : {"label", "uniform"}, optional
-            The pivot sampling method.
-        metric_sample : {"uniform", "weighted"}, optional
-            The metric sampling method.
-        metrics : str or list, optional
-            The distance metrics
-        metrics_params : list, optional
-            The params to the metrics
-        max_depth : int, optional
-            The maximum tree depth.
-        min_samples_split : int, optional
-            The minimum number of samples to consider a split.
-        min_samples_leaf : int, optional
-            The minimum number of samples in a leaf.
-        min_impurity_decrease : float, optional
-            The minimum impurity decrease to build a sub-tree.
-        class_weight : array-like of shape (n_labels, ) or "balanced", optional
-            The class weights.
-        random_state : int or RandomState, optional
-            The pseudo random number generator.
-        """
         super().__init__(
-            force_dim=force_dim,
             max_depth=max_depth,
             min_samples_split=min_samples_split,
             min_samples_leaf=min_samples_leaf,
@@ -158,56 +195,83 @@ class ProximityTreeClassifier(TreeClassifierMixin, BaseTree):
         self.criterion = criterion
         self.pivot_sample = pivot_sample
         self.metric_sample = metric_sample
-        self.metrics = metrics
-        self.metrics_params = metrics_params
+        self.metric = metric
+        self.metric_params = metric_params
+        self.metric_factories = metric_factories
         self.class_weight = class_weight
         self.random_state = random_state
 
-    def _fit(self, x, y, sample_weights, random_state):
-        max_depth = (
-            sys.getrecursionlimit() if self.max_depth is None else self.max_depth
-        )
-        if self.min_impurity_decrease < 0.0:
-            raise ValueError(
-                "min_impurity_decrease must be larger than or equal to 0.0"
+    def _fit(self, x, y, sample_weights, max_depth, random_state):
+        if self.metric_factories is not None:
+            # TODO(1.4)
+            warnings.warn(
+                "The parameter metric_factories has been renamed to metric "
+                "in 1.2 and will be removed in 1.4",
+                FutureWarning,
             )
+            if isinstance(self.metric_factories, dict):
+                metric = list(self.metric_factories.items())
 
-        if max_depth <= 0:
-            raise ValueError("max_depth must be larger than 0")
-        elif max_depth > sys.getrecursionlimit():
-            warnings.warn("max_depth exceeds the maximum recursion limit.")
+            metric = self.metric_factories
 
-        if self.criterion not in _CLF_CRITERION:
-            raise ValueError()
+        metric = self.metric
+        if isinstance(metric, str) and metric == "auto":
+            std_x = np.std(x)
+            metric_spec = [
+                ("euclidean", None),
+                ("dtw", None),
+                ("ddtw", None),
+                ("dtw", {"min_r": 0, "max_r": 0.25, "default_n": 50}),
+                ("ddtw", {"min_r": 0, "max_r": 0.25, "default_n": 50}),
+                ("wdtw", {"min_g": std_x * 0.2, "max_g": std_x, "default_n": 50}),
+                ("wddtw", {"min_g": std_x * 0.2, "max_g": std_x, "default_n": 50}),
+                (
+                    "lcss",
+                    {
+                        "min_epsilon": std_x * 0.2,
+                        "max_epsilon": std_x,
+                        "min_r": 0,
+                        "max_r": 0.25,
+                        "default_n": 20,
+                    },
+                ),
+                ("erp", {"min_g": 0, "max_g": 1.0, "default_n": 50}),
+                ("msm", {"min_c": 0.01, "max_c": 100, "default_n": 50}),
+                (
+                    "twe",
+                    {
+                        "min_penalty": 0.00001,
+                        "max_penalty": 1.0,
+                        "min_stiffness": 0.000001,
+                        "max_stiffness": 0.1,
+                        "default_n": 20,
+                    },
+                ),
+            ]
+            metrics, weights = make_metrics(metric_spec)
+        elif isinstance(metric, str) and metric in _METRIC_NAMES:
+            Metric = check_option(_METRICS, metric, "metric")
+            metrics = [Metric(**(self.metric_params or {}))]
+            weights = np.ones(1)
+        else:
+            metrics, weights = make_metrics(metric)
 
-        if self.pivot_sample not in _PIVOT_SAMPLER:
-            raise ValueError()
-
-        if self.metric_sample not in _DISTANCE_MEASURE_SAMPLER:
-            raise ValueError()
-
-        distance_measures, weights = make_metrics(
-            metrics=self.metrics, metrics_params=self.metrics_params
-        )
-        criterion = _CLF_CRITERION[self.criterion](y, self.n_classes_)
-        pivot_sampler = _PIVOT_SAMPLER[self.pivot_sample]()
-        distance_measure_sampler = _DISTANCE_MEASURE_SAMPLER[self.metric_sample](
-            len(distance_measures), weights=weights
-        )
-        tree = Tree(distance_measures, self.n_classes_)
-        n_features = self.n_pivot
-
-        x = check_dataset(x)
+        Criterion = _CLF_CRITERION[self.criterion]
+        PivotSampler = _PIVOT_SAMPLER[self.pivot_sample]
+        MetricSampler = _METRICS_SAMPLER[self.metric_sample]
         tree_builder = TreeBuilder(
-            x,
+            _check_ts_array(x),
             sample_weights,
-            pivot_sampler,
-            distance_measure_sampler,
-            criterion,
-            tree,
+            PivotSampler(),
+            MetricSampler(len(metrics), weights=weights),
+            Criterion(y, self.n_classes_),
+            Tree(metrics, self.n_classes_),
             random_state,
+            n_attributes=self.n_pivot,
             max_depth=max_depth,
-            n_features=n_features,
+            min_impurity_decrease=self.min_impurity_decrease,
+            min_samples_split=self.min_samples_split,
+            min_samples_leaf=self.min_samples_leaf,
         )
         tree_builder.build_tree()
         self.tree_ = tree_builder.tree

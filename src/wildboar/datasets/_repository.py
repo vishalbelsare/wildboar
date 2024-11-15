@@ -1,22 +1,9 @@
-# This file is part of wildboar
-#
-# wildboar is free software: you can redistribute it and/or modify it
-# under the terms of the GNU Lesser General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# wildboar is distributed in the hope that it will be useful, but
-# WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser
-# General Public License for more details.
-#
-# You should have received a copy of the GNU Lesser General Public License
-# along with this program. If not, see <http://www.gnu.org/licenses/>.
-#
 # Authors: Isak Samsten
+# License: BSD 3 clause
 
 import base64
 import hashlib
+import json
 import os
 import pickle
 import re
@@ -24,32 +11,26 @@ import sys
 import warnings
 import zipfile
 from abc import ABCMeta, abstractmethod
+from urllib.error import URLError
+from urllib.request import urlopen, urlretrieve
 
 import numpy as np
-from pkg_resources import parse_version
+from sklearn.utils.fixes import parse_version
 
-import wildboar as wb
-from wildboar import __version__ as wildboar_version
-
-try:
-    import requests
-except ModuleNotFoundError as e:
-    from wildboar.utils import _soft_dependency_error
-
-    _soft_dependency_error(e, context="wildboar.datasets")
-
+from .. import EOS
+from .. import __version__ as wildboar_version
 
 DEFAULT_TAG = "default"
 
 
 def _replace_placeholders(url, **kwargs):
-    """Replace placeholder values of the format {key} with kwargs[key]
+    """
+    Replace placeholder values of the format {key} with kwargs[key].
 
     Parameters
     ----------
     url : str
         The input string
-
     **kwargs : dict
         The key and values to replace
 
@@ -63,22 +44,22 @@ def _replace_placeholders(url, **kwargs):
 
 
 def _check_integrity(bundle_file, hash_file, throws=True):
-    """Check the integrity of the downloaded or cached file
+    """
+    Check the integrity of the downloaded or cached file.
 
     Parameters
     ----------
     bundle_file : str, bytes or PathLike
         Path to the bundle file
-
     hash_file : str, bytes or PathLike
         Path to the hash file
-
     throws : bool
         Throw an exception on hash missmatch
 
     Returns
     -------
-    bool : true if the hash of bundle file matches the contents of the hash file
+    bool
+        true if the hash of bundle file matches the contents of the hash file
     """
     with open(hash_file, "r") as f:
         hash = f.readline().strip()
@@ -88,7 +69,7 @@ def _check_integrity(bundle_file, hash_file, throws=True):
         if hash != actual_hash:
             if throws:
                 raise ValueError(
-                    "integrity check failed, expected '%s', got '%s'"
+                    "Integrity check failed, expected '%s', got '%s'."
                     % (hash, actual_hash)
                 )
             else:
@@ -97,7 +78,8 @@ def _check_integrity(bundle_file, hash_file, throws=True):
 
 
 def _sha1_is_sane(hash_file):
-    """Check the sanity of a hash file
+    """
+    Check the sanity of a hash file.
 
     Parameters
     ----------
@@ -106,7 +88,8 @@ def _sha1_is_sane(hash_file):
 
     Returns
     -------
-    bool : Returns true if hash is 40 characters long; otherwise false.
+    bool
+        Returns true if hash is 40 characters long; otherwise false.
     """
     with open(hash_file, "r") as f:
         return len(f.readline().strip()) == 40
@@ -121,40 +104,36 @@ def _load_archive(
     progress=True,
     force=False,
 ):
-    """Load or download a bundle
+    """
+    Load or download a bundle.
 
     Parameters
     ----------
     bundle_name : str
-        The name of the cached file
-
+        The name of the cached file.
     download_url : str
-        The download url to the bundle and hash file
-
+        The download url to the bundle and hash file.
     cache_dir : str
-        The cache directory
-
+        The cache directory.
     create_cache_dir : bool
-        Create the cache directory if missing
-
+        Create the cache directory if missing.
     progress : bool
         Show progress information
-
     force : bool
-        Remove any cached files and force re-download
+        Remove any cached files and force re-download.
 
     Returns
     -------
-    archive : zipfile.ZipFile
-        A zip-archive with datasets
+    zipfile.ZipFile
+        A zip-archive with datasets.
     """
     if not os.path.exists(cache_dir):
         if create_cache_dir:
             os.makedirs(os.path.abspath(cache_dir), exist_ok=True)
         else:
             raise ValueError(
-                "output directory does not exist "
-                "(set create_cache_dir=True to create it)"
+                "The output directory %s does not exist. "
+                "Set create_cache_dir=True to create it." % cache_dir
             )
 
     cached_hash = os.path.join(cache_dir, "%s.sha1" % bundle_name)
@@ -183,84 +162,109 @@ def _load_archive(
 
 
 def _download_hash_file(cached_hash, hash_url, filename):
-    """Download the
+    """
+    Download the hash file.
 
     Parameters
     ----------
     cached_hash : str, bytes or PathLike
-        The path to the cached hash
-
+        The path to the cached hash.
     hash_url : str
-        The download url
-
+        The download url.
     filename : str
-        The filename of the bundle
+        The filename of the bundle.
     """
-    with open(cached_hash, "w") as f:
-        response = requests.get(hash_url)
-        if not response:
-            f.close()
+    with open(cached_hash, "wb") as f:
+        try:
+            with urlopen(hash_url, timeout=5) as response:
+                f.write(response.read())
+        except URLError as e:
             os.remove(cached_hash)
             raise ValueError(
-                "bundle (%s) not found (.sha1-file is missing). "
-                "Try another version or tag." % filename
-            )
-        f.write(response.text)
+                "Downloading %s.sha1 failed. Try another version or tag." % filename
+            ) from e
+
+
+_SIZE_NAMES = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
+
+
+def _convert_size(byte_size, i=None):
+    import math
+
+    if byte_size == 0:
+        return 0, 0
+
+    if i is None:
+        i = int(math.floor(math.log(byte_size, 1024)))
+    p = math.pow(1024, i)
+    s = round(byte_size / p, 2)
+    return s, i
+
+
+def _print_progress(
+    current_iter,
+    max_iter,
+    *,
+    prefix="",
+    suffix="",
+    progress=None,
+    length=50,
+    fill="█",
+    unfill="-",
+    end="\r",
+    file=sys.stderr,
+):
+    def size_progress(current, total):
+        total_size, total_type = _convert_size(total)
+        current_size, _ = _convert_size(current, total_type)
+        return f" {current_size}/{total_size} {_SIZE_NAMES[total_type]}"
+
+    if progress is None:
+        progress = size_progress
+
+    progress = progress(float(current_iter), float(max_iter))
+    fill_size = int(length * current_iter // max_iter)
+    unfill_size = int(length - fill_size)
+    bar = fill * fill_size + unfill * unfill_size
+    print(f"\r{prefix}|{bar}|{progress}{suffix}", file=file, end=end)
+    if current_iter >= max_iter:
+        print(file=file)
 
 
 def _download_bundle_file(cached_bundle, bundle_url, filename, progress):
-    """Download the bundle
+    """
+    Download the bundle.
 
     Parameters
     ----------
     cached_bundle : str, bytes or PathLike
         The path to the cached bundle
-
     bundle_url : str
         The download url
-
     filename : str
         The filename of the bundle
-
     progress : bool
         Show progress bar
     """
-    with open(cached_bundle, "wb") as f:
-        response = requests.get(bundle_url, stream=True)
-        if not response:
-            f.close()
-            os.remove(cached_bundle)
-            raise ValueError(
-                "bundle (%s) not found (.zip-file is missing). "
-                "Try another version or tag." % filename
-            )
 
-        total_length = response.headers.get("content-length")
-        if total_length is None:  # no content length header
-            f.write(response.content)
-        else:
-            length = 0
-            total_length = int(total_length)
-            for data in response.iter_content(chunk_size=4096):
-                length += len(data)
-                f.write(data)
-                done = int(50 * length / total_length)
-                if length % 100 == 0 and progress:
-                    sys.stderr.write(
-                        "\r[%s%s] %d/%d downloading %s"
-                        % (
-                            "=" * done,
-                            " " * (50 - done),
-                            length,
-                            total_length,
-                            filename,
-                        )
-                    )
-                    sys.stderr.flush()
+    if progress:
+
+        def reporthook(blocknum, bs, size):
+            _print_progress(blocknum * bs, size)
+    else:
+        reporthook = None
+
+    try:
+        urlretrieve(bundle_url, cached_bundle, reporthook=reporthook)
+    except URLError as e:
+        os.remove(cached_bundle)
+        raise ValueError(
+            "Downloading %s.zip failed. Try another version or tag." % filename
+        ) from e
 
 
 class Repository(metaclass=ABCMeta):
-    """A repository is a collection of bundles"""
+    """A repository is a collection of bundles."""
 
     def __init__(self):
         self._active = False
@@ -281,54 +285,64 @@ class Repository(metaclass=ABCMeta):
     @property
     @abstractmethod
     def name(self):
-        """Name of the repository
+        """
+        Name of the repository.
 
         Returns
         -------
-        str : the name of the repository
+        str
+            The name of the repository.
         """
         pass
 
     @property
     @abstractmethod
     def version(self):
-        """The repository version
+        """
+        The repository version.
 
         Returns
         -------
-        str : the version of the repository
+        str
+            The version of the repository.
         """
         pass
 
     @property
     @abstractmethod
     def download_url(self):
-        """The url template for downloading bundles
+        """
+        The url template for downloading bundles.
 
         Returns
         -------
-        str : the download url
+        str
+            The download url.
         """
         pass
 
     @property
     @abstractmethod
     def wildboar_requires(self):
-        """The minimum required wildboar version
+        """
+        The minimum required wildboar version.
 
         Returns
         -------
-        str : the min version
+        str
+            The min version.
         """
         pass
 
     @abstractmethod
     def get_bundles(self):
-        """Get all bundles
+        """
+        Get all bundles.
 
         Returns
         -------
-        dict : a dictionary of key and bundle
+        dict
+            A dictionary of key and bundle.
         """
         pass
 
@@ -337,21 +351,22 @@ class Repository(metaclass=ABCMeta):
         return self._active
 
     def get_bundle(self, key):
-        """Get a bundle with the specified key
+        """
+        Get a bundle with the specified key.
 
         Parameters
         ----------
         key : str
-            Key of the bundle
+            Key of the bundle.
 
         Returns
         -------
-        bundle : Bundle, optional
-            A bundle or None
+        Bundle, optional
+            A bundle or None.
         """
         bundle = self.get_bundles().get(key)
         if bundle is None:
-            raise ValueError("bundle (%s) does not exist" % key)
+            raise ValueError("The bundle %s does not exist." % key)
         return bundle
 
     def load_dataset(
@@ -360,14 +375,13 @@ class Repository(metaclass=ABCMeta):
         dataset,
         *,
         cache_dir,
-        version=None,
         tag=None,
         create_cache_dir=True,
         progress=True,
         force=False,
     ):
         bundle = self.get_bundle(bundle)
-        version = version or bundle.version
+        version = bundle.version
         tag = tag or bundle.tag
 
         cache_dir = os.path.join(cache_dir, self.identifier)
@@ -391,14 +405,13 @@ class Repository(metaclass=ABCMeta):
         *,
         cache_dir,
         collection=None,
-        version=None,
         tag=None,
         create_cache_dir=True,
         progress=True,
         force=False,
     ):
         bundle = self.get_bundle(bundle)
-        version = version or bundle.version
+        version = bundle.version
         tag = tag or bundle.tag
 
         cache_dir = os.path.join(cache_dir, self.identifier)
@@ -438,11 +451,11 @@ class Repository(metaclass=ABCMeta):
                 os.remove(full_path)
 
     def refresh(self, timeout=None):
-        """Refresh the repository"""
+        """Refresh the repository."""
         try:
             self._refresh(timeout)
             self._active = True
-        except requests.ConnectionError:
+        except URLError:
             self._active = False
 
     @abstractmethod
@@ -455,7 +468,7 @@ def _validate_url(url):
         return url
     else:
         raise ValueError(
-            "repository url is invalid, got %s "
+            "The repository url is invalid, got %s "
             "({bundle}, {version} and {tag} are required)" % url
         )
 
@@ -464,43 +477,53 @@ def _validate_repository_name(str):
     if re.match("[a-zA-Z]+", str):
         return str
     else:
-        raise ValueError("repository name (%s) is not valid" % str)
+        raise ValueError(
+            "The repository name %s is not valid, expected only characters." % str
+        )
 
 
 def _validate_bundle_key(str):
     if re.match(r"[a-zA-Z0-9\-]+", str):
         return str
     else:
-        raise ValueError("bundle key (%s) is not valid" % str)
+        raise ValueError(
+            "The bundle key %s is not valid, expected only characters, numbers or -."
+            % str
+        )
 
 
 def _validate_version(str, *, max_version=None):
     if re.match(r"(^(?:\d+\.)?(?:\d+\.)?(?:\*|\d+)$)", str):
         if max_version and parse_version(str) > parse_version(max_version):
-            raise ValueError("unsupported version (%s > %s)" % (str, max_version))
+            raise ValueError(
+                "The dataset is not supported, required version >=%s, got %s"
+                % (max_version, str)
+            )
         return str
     else:
-        raise ValueError("version (%s) is not valid" % str)
+        raise ValueError("The version %s is not valid." % str)
 
 
 def _validate_collections(collections):
     if not isinstance(collections, dict):
-        raise ValueError(
-            "value (%r) is not supported for attribute 'collections'" % collections
+        raise TypeError(
+            "'collections' must be dict, not %r" % type(collections).__qualname__
         )
     else:
         for key, values in collections.items():
             if not isinstance(values, list):
-                raise ValueError(
-                    "value (%r) is not supported as 'collections.value'" % values
+                raise TypeError(
+                    "'collections.value' must be list, not %r"
+                    % type(values).__qualname__
                 )
             if not isinstance(key, str):
-                raise ValueError("value (%r) is not supported as 'collections.key' ")
+                raise TypeError(
+                    "'collections.key' must be str, not" % type(key).__qualname__
+                )
     return collections
 
 
 class JSONRepository(Repository):
-
     supported_version = "1.1"
 
     def __init__(self, url):
@@ -531,24 +554,27 @@ class JSONRepository(Repository):
         return self._bundles
 
     def _refresh(self, timeout):
-        json = requests.get(self.repo_url, timeout=timeout).json()
-        self._wildboar_requires = json["wildboar_requires"]
-        self._name = _validate_repository_name(json["name"])
+        try:
+            json_data = json.load(urlopen(self.repo_url, timeout=timeout))
+        except json.JSONDecodeError as e:
+            raise RuntimeError("Cannot parse the repository") from e
+
+        self._wildboar_requires = json_data["wildboar_requires"]
+        self._name = _validate_repository_name(json_data["name"])
         self._version = _validate_version(
-            json["version"], max_version=JSONRepository.supported_version
+            json_data["version"], max_version=JSONRepository.supported_version
         )
         if parse_version(self.wildboar_requires) > parse_version(wildboar_version):
             raise ValueError(
-                "repository requires wildboar (>=%s), got %s",
-                self.wildboar_requires,
-                wildboar_version,
+                "The repository requires wildboar >=%s, got %s"
+                % (self.wildboar_requires, wildboar_version),
             )
-        self._bundle_url = _validate_url(json["bundle_url"])
+        self._bundle_url = _validate_url(json_data["bundle_url"])
         bundles = {}
-        for bundle_json in json["bundles"]:
+        for bundle_json in json_data["bundles"]:
             key = _validate_bundle_key(bundle_json["key"])
             if key in bundles:
-                warnings.warn("duplicate dataset, %s (ignoring)" % key)
+                warnings.warn("duplicate dataset %s (ignoring)" % key, UserWarning)
 
             version = _validate_version(bundle_json["version"])
             tag = bundle_json.get("tag")
@@ -557,13 +583,15 @@ class JSONRepository(Repository):
 
             name = bundle_json.get("name")
             if name is None:
-                raise ValueError("bundle name is required (%s)" % key)
+                raise ValueError("bundle %s require 'name', but got None" % key)
 
             arrays = bundle_json.get("arrays")
             if arrays is not None:
                 if not isinstance(arrays, list):
                     warnings.warn(
-                        "value (%r) is not supported for attribute 'arrays'" % arrays
+                        "'arrays' should be list, not %r. Using defaults."
+                        % type(arrays).__qualname__,
+                        UserWarning,
                     )
                     arrays = None
 
@@ -571,8 +599,9 @@ class JSONRepository(Repository):
             if description is not None:
                 if not isinstance(description, str):
                     warnings.warn(
-                        "value (%r) is not supported for attribute 'description'"
-                        % description
+                        "'description' should be str, not %r. Using defaults."
+                        % type(description).__qualname__,
+                        UserWarning,
                     )
                     description = None
 
@@ -597,8 +626,19 @@ class RepositoryCollection:
     def __init__(self):
         self.pending_repositories = set()
         self.repositories = set()
+        self._initialized = False
 
     def __getitem__(self, key):
+        if not self._initialized:
+            self._initialized = True
+            self.refresh(timeout=10)
+            if len(self.repositories) == 0:
+                warnings.warn(
+                    "Initial repository refresh timed out. "
+                    "Please use `refresh_repositories` to initialize the repositories.",
+                    UserWarning,
+                )
+
         repository = next(
             (repository for repository in self.repositories if repository.name == key),
             None,
@@ -607,11 +647,11 @@ class RepositoryCollection:
         if repository is None:
             if self.pending_repositories:
                 raise ValueError(
-                    "repository (%s) does not exist, but %d repositories have not been "
-                    "refreshed yet." % (key, len(self.pending_repositories))
+                    "The repository %s does not exist, but %d repositories have not "
+                    "been refreshed yet." % (key, len(self.pending_repositories))
                 )
             else:
-                raise ValueError("repository (%s) does not exist" % key)
+                raise ValueError("The repository %s does not exist." % key)
 
         return repository
 
@@ -662,6 +702,7 @@ class RepositoryCollection:
             for repository in self.pending_repositories:
                 repository.refresh(timeout)
                 if repository.active:
+                    self._check_unique(repository.name)
                     self.repositories.add(repository)
                     self.save_repository(repository, cache_dir=cache_dir)
                 else:
@@ -669,7 +710,8 @@ class RepositoryCollection:
                         repository, cache_dir=cache_dir
                     )
                     if cached_repository:
-                        self.repositories.add(repository)
+                        self._check_unique(cached_repository.name)
+                        self.repositories.add(cached_repository)
 
             self.pending_repositories = set(
                 repository
@@ -687,29 +729,41 @@ class RepositoryCollection:
             repository.refresh(timeout)
 
         if repository.active:
+            self._check_unique(repository.name)
             self.repositories.add(repository)
         else:
             cached_repository = self.load_repository(repository, cache_dir=cache_dir)
             if cached_repository:
+                self._check_unique(cached_repository)
                 self.repositories.add(cached_repository)
             else:
                 self.pending_repositories.add(repository)
 
+    def _check_unique(self, key):
+        if key in {repo.name for repo in self.repositories}:
+            raise ValueError(f"Repository with {key} already exists")
+
 
 class Bundle(metaclass=ABCMeta):
-    """Base class for handling dataset bundles
+    """
+    Base class for handling dataset bundles.
 
-    Attributes
+    Parameters
     ----------
-
+    key : str
+        A unique key of the bundle.
+    version : str
+        The version of the bundle.
     name : str
-        Human-readable name of the bundle
-
+        Human-readable name of the bundle.
+    tag : str, optional
+        A bundle tag.
+    arrays : list
+        The arrays of the dataset.
     description : str
-        Description of the bundle
-
-    label_index : int or array-like
-        Index of the class label(s)
+        Description of the bundle.
+    collections : dict, optional
+        A list of collections.
     """
 
     def __init__(
@@ -723,25 +777,6 @@ class Bundle(metaclass=ABCMeta):
         description=None,
         collections=None,
     ):
-        """Construct a bundle
-
-        Parameters
-        ----------
-        key : str
-            A unique key of the bundle
-
-        version : str
-            The version of the bundle
-
-        name : str
-            Human-readable name of the bundle
-
-        description : str
-            Description of the bundle
-
-        arrays : list
-            The arrays of the dataset
-        """
         self.key = key
         self.version = version
         self.name = name
@@ -751,6 +786,23 @@ class Bundle(metaclass=ABCMeta):
         self.arrays = arrays or ["x", "y"]
 
     def get_filename(self, version=None, tag=None, ext=None):
+        """
+        Get the cache name of the bundle.
+
+        Parameters
+        ----------
+        version : str, optional
+            The bundle version.
+        tag : str, optional
+            The tag.
+        ext : str, optional
+            The extension of the file.
+
+        Returns
+        -------
+        str
+            The filename.
+        """
         filename = "%s-v%s" % (self.key, version or self.version)
         if tag:
             filename += "-%s" % tag
@@ -759,29 +811,42 @@ class Bundle(metaclass=ABCMeta):
         return filename
 
     def get_collection(self, collection):
+        """
+        Get a dataset collection.
+
+        Parameters
+        ----------
+        collection : str, optional
+            The name of the collection.
+
+        Returns
+        -------
+        list
+            List of datasets in the collection.
+        """
         if self.collections is None:
-            raise ValueError("collection (%s) not found" % collection)
+            raise ValueError("The collection %s cannot be found." % collection)
         else:
             c = self.collections.get(collection)
             if c is None:
-                raise ValueError("collection (%s) not found" % collection)
+                raise ValueError("The collection %s cannot be found." % collection)
             return c
 
     def list(self, archive, collection=None):
-        """List all datasets in this bundle
+        """
+        List all datasets in this bundle.
 
         Parameters
         ----------
         archive : ZipFile
-            The bundle file
-
+            The bundle file.
         collection : str, optional
-            The collection name
+            The collection name.
 
         Returns
         -------
-        dataset_names : list
-            A sorted list of datasets in the bundle
+        list
+            A sorted list of datasets in the bundle.
         """
         names = []
         if collection is not None:
@@ -798,34 +863,31 @@ class Bundle(metaclass=ABCMeta):
 
         return sorted(set(names))
 
-    def load(
+    def load(  # noqa: PLR0912
         self,
         name,
         archive,
     ):
-        """Load a dataset from the bundle
+        """
+        Load a dataset from the bundle.
 
         Parameters
         ----------
         name : str
-            Name of the dataset
-
+            Name of the dataset.
         archive : ZipFile
-            The zip-file bundle
+            The zip-file bundle.
 
         Returns
         -------
         x : ndarray
-            Data samples
-
+            Data samples.
         y : ndarray
-            Data labels
-
+            Data labels.
         n_training_samples : int
-            Number of samples that are for training. The value is <= x.shape[0]
-
+            Number of samples that are for training. The value is <= x.shape[0].
         extras : dict, optional
-            Extra numpy arrays
+            Extra numpy arrays.
         """
         datasets = []
         for dataset in map(_Dataset, archive.filelist):
@@ -833,7 +895,8 @@ class Bundle(metaclass=ABCMeta):
                 datasets.append(dataset)
 
         if not datasets:
-            raise ValueError("no dataset found (%s)" % name)
+            raise ValueError("The dataset %s cannot be found." % name)
+
         train_parts = [
             self._load_array(archive, dataset.file)
             for dataset in datasets
@@ -853,7 +916,9 @@ class Bundle(metaclass=ABCMeta):
 
         sizes = [data[array].shape[0] for array in self.arrays]
         if max(sizes) != min(sizes):
-            raise ValueError("all arrays must have the same number of samples")
+            raise ValueError(
+                "Arrays %s must have the same number of samples." % self.arrays
+            )
 
         n_train_samples = sizes[0]
         if test_parts:
@@ -865,11 +930,15 @@ class Bundle(metaclass=ABCMeta):
                 test = np.concatenate(test, axis=0)
 
                 if test.ndim != train.ndim:
-                    raise ValueError("train and test parts have incompatible rank")
+                    raise ValueError(
+                        "The training (%d) and testing (%d) parts have incompatible "
+                        "rank" % (test.ndim, train.ndim)
+                    )
 
                 if test.ndim > 2 and train.shape[1] != test.shape[1]:
                     raise ValueError(
-                        "train and test parts have incompatible number dimensions"
+                        "The training (%d) and testing (%d) parts have incompatible "
+                        "number dimensions" % (train.shape[1], test.shape[1])
                     )
 
                 if test.ndim == 1:
@@ -886,8 +955,12 @@ class Bundle(metaclass=ABCMeta):
                             test.shape[1],
                             max(test.shape[-1], train.shape[-1]),
                         )
+                    else:
+                        raise ValueError(
+                            "Invalid dataset rank %d, expected <= 3" % test.ndim
+                        )
 
-                    merge = np.full(shape, fill_value=wb.eos, dtype=np.double)
+                    merge = np.full(shape, fill_value=EOS, dtype=np.double)
                     merge[: train.shape[0], ..., : train.shape[-1]] = train
                     merge[train.shape[0] :, ..., : test.shape[-1]] = test
                     data[array] = merge
@@ -898,51 +971,50 @@ class Bundle(metaclass=ABCMeta):
 
     @abstractmethod
     def _is_dataset(self, file_name, ext):
-        """Overridden by subclasses
+        """
+        Check if a path and extension is to be considered a dataset.
 
-        Check if a path and extension is to be considered a dataset. The check should be
-        simple and only consider the filename and or extension of the file.
-        Validation of the file should be deferred to `_load_array`
+        The check should be simple and only consider the filename and or
+        extension of the file. Validation of the file should be deferred to
+        `_load_array`
 
         Parameters
         ----------
         file_name : str
-            Name of the dataset file
+            Name of the dataset file.
 
         ext : str
-            Extension of the dataset file
+            Extension of the dataset file.
 
         Returns
         -------
         bool
-            True if it is a dataset
+            True if it is a dataset.
         """
         pass
 
     @abstractmethod
     def _load_array(self, archive, file):
-        """Overridden by subclasses
-
-        Load the file inside the archive and convert to a numpy array
+        """
+        Load the file inside the archive and convert to a numpy array.
 
         Parameters
         ----------
         archive : ZipFile
-            The zip-archive in which the file reside
-
+            The zip-archive in which the file reside.
         file : str
-            Path to the file inside the zip-archive
+            Path to the file inside the zip-archive.
 
         Returns
         -------
         ndarray
-            The dataset converted to a ndarray
+            The dataset converted to a ndarray.
         """
         pass
 
 
 class NpBundle(Bundle):
-    """bundle of numpy binary files"""
+    """Bundle of numpy binary files."""
 
     def _is_dataset(self, file_name, ext):
         return ext in [".npy", ".npz"]
@@ -956,7 +1028,7 @@ class NpBundle(Bundle):
             elif "x" in self.arrays:
                 return {"x": data}
             else:
-                raise ValueError("Can't infer arrays to export")
+                raise ValueError("Can't infer arrays to export.")
         else:
             return data
 

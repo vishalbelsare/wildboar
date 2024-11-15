@@ -1,11 +1,10 @@
 pytest
-requests
+pytest-benchmark
 networkx
-scikit-learn-extra
 pre-commit
-black
-isort
-cython>=0.29.14
-setuptools_scm[toml]>=3.4
+flake8==6.0.0
+black==23.1.0
+cython>=3.0.2
+setuptools_scm[toml]>=6.2
 setuptools>=48.0
 wheel

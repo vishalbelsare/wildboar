@@ -1,21 +1,11 @@
+# cython: cdivision=True
+# cython: boundscheck=False
+# cython: wraparound=False
 # cython: language_level=3
-
-# This file is part of wildboar
-#
-# wildboar is free software: you can redistribute it and/or modify it
-# under the terms of the GNU Lesser General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# wildboar is distributed in the hope that it will be useful, but
-# WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser
-# General Public License for more details.
-#
-# You should have received a copy of the GNU Lesser General Public License
-# along with this program. If not, see <http://www.gnu.org/licenses/>.
+# cython: initializedcheck=False
 
 # Authors: Isak Samsten
+# License: BSD 3 clause
 
 cdef extern from "pocketfft.h":
     ctypedef struct rfft_plan:
@@ -36,22 +26,22 @@ cdef extern from "pocketfft.h":
     cdef int cfft_forward(cfft_plan plan, double *c, double fct) nogil
     cdef size_t cfft_length(cfft_plan plan) nogil
 
-cdef void fft(complex *x, Py_ssize_t n, double fct) nogil:
+cdef void fft(complex *x, Py_ssize_t n, double fct) noexcept nogil:
     cdef cfft_plan fft_plan = make_cfft_plan(n)
     cfft_forward(fft_plan, <double *> x, fct)
     destroy_cfft_plan(fft_plan)
 
-cdef void ifft(complex *x, Py_ssize_t n, double fct) nogil:
+cdef void ifft(complex *x, Py_ssize_t n, double fct) noexcept nogil:
     cdef cfft_plan fft_plan = make_cfft_plan(n)
     cfft_backward(fft_plan, <double *> x, fct)
     destroy_cfft_plan(fft_plan)
 
-cdef void rfft(double *x, Py_ssize_t n, double fct) nogil:
+cdef void rfft(double *x, Py_ssize_t n, double fct) noexcept nogil:
     cdef rfft_plan fft_plan = make_rfft_plan(n)
     rfft_forward(fft_plan, x, fct)
     destroy_rfft_plan(fft_plan)
 
-cdef void irfft(double *x, Py_ssize_t n, double fct) nogil:
+cdef void irfft(double *x, Py_ssize_t n, double fct) noexcept nogil:
     cdef rfft_plan fft_plan = make_rfft_plan(n)
     rfft_backward(fft_plan, x, fct)
     destroy_rfft_plan(fft_plan)
